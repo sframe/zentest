@@ -49,7 +49,7 @@ def write_issues(r, csvout, repo_name, repo_ID):
                              issue['milestone']['title'] if issue['milestone'] else "",issue['milestone']['due_on'] if issue['milestone'] else "",
                              sAssigneeList[:-1], lEstimateValue, sPhase, sEscDefect] )
 #Wait added for the ZenHub api rate limit of 100 requests per minute
-            if ISSUES%99 == 0:
+            if ISSUES%(ZENHUB_API_RATE_LIMIT-1) == 0:
                 time.sleep(60)
         else:
             print ('You have skipped %s Pull Requests' % ISSUES)
