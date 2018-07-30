@@ -4,7 +4,6 @@ import json
 import requests
 import time
 import os
-import sys
 import argparse
 
 """
@@ -59,9 +58,10 @@ def write_issues(r, csvout, repo_name, repo_ID, starttime):
             print ('You have skipped %s Pull Requests' % ISSUES)
 
 
-def get_issues(repo_name,repo_ID):
-    issues_for_repo_url = 'https://api.github.com/repos/%s/issues?state=open' % repo_name
-    print (AUTH)
+def get_issues(repo_data):
+    repo_name = repo_data[0]
+    repo_ID = repo_data[1]
+    issues_for_repo_url = 'https://api.github.com/repos/%s/issues?state=all' % repo_name
     r = requests.get(issues_for_repo_url, auth=AUTH)
     starttime = time.time()
     write_issues(r, FILEOUTPUT, repo_name, repo_ID, starttime)
@@ -84,29 +84,25 @@ def get_issues(repo_name,repo_ID):
 
 PAYLOAD = ""
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--file_name', help = 'file_name=filename.txt')
+parser.add_argument('--repo_list', nargs='+', help = 'repo_list = owner/repo zenhub-id')
+args = parser.parse_args()
 
-if len(sys.argv) > 1:
-   FILENAME = sys.argv[1]
-else:
-   raise Exception("no filename argument") 
-
-
-repo_name = os.environ['REPO_OWNER']+"/"+os.getenv('REPO_NAME')
-repo_ID = os.environ['ZEN_ID']
-
+REPO_LIST = args.repo_list
 AUTH = ('token', os.environ['AUTH'])
 ACCESS_TOKEN = os.environ['ACCESS_TOKEN']
 ZENHUB_API_RATE_LIMIT = 100
 
 TXTOUT = open('data.json', 'w')
 ISSUES = 0
-
+FILENAME = args.file_name
 OPENFILE = open(FILENAME, 'w', newline='')
 FILEOUTPUT = csv.writer(OPENFILE,dialect='excel',delimiter='|')
 FILEOUTPUT.writerow(['Repository', 'Issue Number', 'Issue Title', 'Pipeline', 'Issue Author',
 	'Created At', 'Milestone', 'Milestone End Date', 'Assigned To', 'Estimate Value', 'Label','Escaped Defect','Labels'])
 #for repo_data in REPO_LIST:
-get_issues(repo_name,repo_ID)
+get_issues(REPO_LIST)
 json.dump(PAYLOAD, open('data.json', 'w'), indent=4)
 TXTOUT.close()
 OPENFILE.close()
