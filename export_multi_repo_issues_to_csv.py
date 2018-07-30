@@ -3,7 +3,8 @@ import csv
 import json
 import requests
 import time
-
+import os
+import argparse
 
 """
 Exports Issues from a list of repositories to individual CSV files
@@ -14,9 +15,10 @@ Derived from https://gist.github.com/Kebiled/7b035d7518fdfd50d07e2a285aff3977
 """
 
 
-def write_issues(r, csvout, repo_name, repo_ID):
+def write_issues(r, csvout, repo_name, repo_ID, starttime):
     if not r.status_code == 200:
         raise Exception(r.status_code)
+
     r_json = r.json()
     for issue in r_json:
         print (repo_name + ' issue Number: ' + str(issue['number']))
@@ -25,18 +27,18 @@ def write_issues(r, csvout, repo_name, repo_ID):
         zen_r = requests.get(zenhub_issue_url).json()
         global Payload
 
-
         if 'pull_request' not in issue:
             global ISSUES
             ISSUES += 1
             sAssigneeList = ''
-            sTag = ''
             sPhase = ''
             sEscDefect = ''
             sPipeline = ''
+            sLabels = ''
             for i in issue['assignees'] if issue['assignees'] else []:
                 sAssigneeList += i['login'] + ','
             for x in issue['labels'] if issue['labels'] else []:
+                sLabels += x['name'] + ','
                 if "Phase" in x['name']:
                     sPhase = x['name']
                 if "EscDefect" in x['name']:
@@ -44,13 +46,14 @@ def write_issues(r, csvout, repo_name, repo_ID):
             #add output of the payload for records not found
             sPipeline = zen_r.get("pipeline", dict()).get('name', "")
             lEstimateValue = zen_r.get("estimate", dict()).get('value', "")
+            elapsedTime = time.time() - starttime
 
             csvout.writerow([repo_name, issue['number'], issue['title'], sPipeline, issue['user']['login'], issue['created_at'],
                              issue['milestone']['title'] if issue['milestone'] else "",issue['milestone']['due_on'] if issue['milestone'] else "",
-                             sAssigneeList[:-1], lEstimateValue, sPhase, sEscDefect] )
-#Wait added for the ZenHub api rate limit of 100 requests per minute
+                             sAssigneeList[:-1], lEstimateValue, sPhase, sEscDefect,sLabels] )
+#Wait added for the ZenHub api rate limit of 100 requests per minute, wait after the rate limit - 1 issues have been processed
             if ISSUES%(ZENHUB_API_RATE_LIMIT-1) == 0:
-                time.sleep(60)
+                time.sleep(45)
         else:
             print ('You have skipped %s Pull Requests' % ISSUES)
 
@@ -60,7 +63,8 @@ def get_issues(repo_data):
     repo_ID = repo_data[1]
     issues_for_repo_url = 'https://api.github.com/repos/%s/issues?state=all' % repo_name
     r = requests.get(issues_for_repo_url, auth=AUTH)
-    write_issues(r, FILEOUTPUT, repo_name, repo_ID)
+    starttime = time.time()
+    write_issues(r, FILEOUTPUT, repo_name, repo_ID, starttime)
     # more pages? examine the 'link' header returned
     if 'link' in r.headers:
         pages = dict(
@@ -73,28 +77,35 @@ def get_issues(repo_data):
                  [link.split(';') for link in
                   r.headers['link'].split(',')]])
             r = requests.get(pages['next'], auth=AUTH)
-            write_issues(r, FILEOUTPUT, repo_name, repo_ID)
+            write_issues(r, FILEOUTPUT, repo_name, repo_ID, starttime)
             if pages['next'] == pages['last']:
                 break
 
 
 PAYLOAD = ""
 
-REPO_LIST = [("*GITHUB REPO*", "*ZENHUB REPOID*")]
+parser = argparse.ArgumentParser()
+parser.add_argument('--file_name', help = 'file_name=filename.txt')
+parser.add_argument('--repo_list', nargs='+', help = 'repo_list = owner/repo zenhub-id')
+args = parser.parse_args()
 
-AUTH = ('token', '*GITHUB ACCESS TOKEN*')
-ACCESS_TOKEN = '?access_token=*ZENHUb ACCESS TOKEN*'
+#REPO_LIST = [("st-cbp/red-button", "136261524")]
+#REPO_LIST = [("st-cbp/olb", "136191097")]
+
+REPO_LIST = args.repo_list
+AUTH = ('token', os.environ['AUTH'])
+ACCESS_TOKEN = os.environ['ACCESS_TOKEN']
 ZENHUB_API_RATE_LIMIT = 100
 
 TXTOUT = open('data.json', 'w')
 ISSUES = 0
-FILENAME = '*Filename*'
+FILENAME = args.file_name
 OPENFILE = open(FILENAME, 'w', newline='')
 FILEOUTPUT = csv.writer(OPENFILE,dialect='excel',delimiter='|')
 FILEOUTPUT.writerow(['Repository', 'Issue Number', 'Issue Title', 'Pipeline', 'Issue Author',
-	'Created At', 'Milestone', 'Milestone End Date', 'Assigned To', 'Estimate Value', 'Label','Escaped Defect'])
-for repo_data in REPO_LIST:
-    get_issues(repo_data)
+	'Created At', 'Milestone', 'Milestone End Date', 'Assigned To', 'Estimate Value', 'Label','Escaped Defect','Labels'])
+#for repo_data in REPO_LIST:
+get_issues(REPO_LIST)
 json.dump(PAYLOAD, open('data.json', 'w'), indent=4)
 TXTOUT.close()
 OPENFILE.close()
