@@ -5,6 +5,8 @@ import requests
 import time
 import os
 import argparse
+import openpyxl
+
 
 """
 Exports Issues from a list of repositories to individual CSV files
@@ -48,15 +50,18 @@ def write_issues(r, csvout, repo_name, repo_ID, starttime):
             lEstimateValue = zen_r.get("estimate", dict()).get('value', "")
             elapsedTime = time.time() - starttime
 
-            csvout.writerow([repo_name, issue['number'], issue['title'], sPipeline, issue['user']['login'], issue['created_at'],
+            rowvalues =[repo_name, issue['number'], issue['title'], sPipeline, issue['user']['login'], issue['created_at'],
                              issue['milestone']['title'] if issue['milestone'] else "",issue['milestone']['due_on'] if issue['milestone'] else "",
-                             sAssigneeList[:-1], lEstimateValue, sPhase, sEscDefect,sLabels] )
+                             sAssigneeList[:-1], lEstimateValue, sPhase, sEscDefect,sLabels]
+
+            for i in range(len(rowvalues)):
+                ws.cell(column=(i+1),row=1+ISSUES,value = rowvalues[i])
+            
 #Wait added for the ZenHub api rate limit of 100 requests per minute, wait after the rate limit - 1 issues have been processed
             if ISSUES%(ZENHUB_API_RATE_LIMIT-1) == 0:
                 time.sleep(45)
         else:
             print ('You have skipped %s Pull Requests' % ISSUES)
-
 
 def get_issues(repo_data):
     repo_name = repo_data[0]
@@ -97,12 +102,24 @@ ZENHUB_API_RATE_LIMIT = 100
 TXTOUT = open('data.json', 'w')
 ISSUES = 0
 FILENAME = args.file_name
-OPENFILE = open(FILENAME, 'w', newline='')
-FILEOUTPUT = csv.writer(OPENFILE,dialect='excel',delimiter='|')
-FILEOUTPUT.writerow(['Repository', 'Issue Number', 'Issue Title', 'Pipeline', 'Issue Author',
-	'Created At', 'Milestone', 'Milestone End Date', 'Assigned To', 'Estimate Value', 'Label','Escaped Defect','Labels'])
+
+from openpyxl import Workbook
+from openpyxl.compat import range
+from openpyxl.utils import get_column_letter
+from openpyxl.styles import Font
+
+FILEOUTPUT = Workbook()
+
+ws = FILEOUTPUT.create_sheet(title="Data")
+
+
+headers = ['Repository', 'Issue Number', 'Issue Title', 'Pipeline', 'Issue Author',
+	'Created At', 'Milestone', 'Milestone End Date', 'Assigned To', 'Estimate Value', 'Phase','Escaped Defect','Labels']
+for i in range(len(headers)):
+    ws.cell(column=(i+1),row=1,value = headers[i])
+    ws.cell(column=(i+1),row=1).font = Font(bold=True)
+
 #for repo_data in REPO_LIST:
 get_issues(REPO_LIST)
 json.dump(PAYLOAD, open('data.json', 'w'), indent=4)
-TXTOUT.close()
-OPENFILE.close()
+FILEOUTPUT.save(filename = FILENAME)
