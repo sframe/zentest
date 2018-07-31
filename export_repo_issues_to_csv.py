@@ -9,7 +9,7 @@ import openpyxl
 
 
 """
-Exports Issues from a list of repositories to individual CSV files
+Exports Issues from a repository to an Excel file
 Uses basic authentication (Github API Token and Zenhub API Token)
 to retrieve Issues from a repository that token has access to.
 Supports Github API v3 and ZenHubs current working API.
@@ -25,7 +25,7 @@ def write_issues(r, csvout, repo_name, repo_ID, starttime):
     for issue in r_json:
         print (repo_name + ' issue Number: ' + str(issue['number']))
         zenhub_issue_url = 'https://api.zenhub.io/p1/repositories/' + \
-            str(repo_ID) + '/issues/' + str(issue['number']) + ACCESS_TOKEN
+            str(repo_ID) + '/issues/' + str(issue['number']) + '?' + ACCESS_TOKEN
         zen_r = requests.get(zenhub_issue_url).json()
         global Payload
 
@@ -50,7 +50,7 @@ def write_issues(r, csvout, repo_name, repo_ID, starttime):
             lEstimateValue = zen_r.get("estimate", dict()).get('value', "")
             elapsedTime = time.time() - starttime
 
-            rowvalues =[repo_name, issue['number'], issue['title'], issue['body'], sPipeline, issue['user']['login'], issue['created_at'],
+            rowvalues =[repo_name, issue['number'], issue['title'], sPipeline, issue['user']['login'], issue['created_at'],
                              issue['milestone']['title'] if issue['milestone'] else "",issue['milestone']['due_on'] if issue['milestone'] else "",
                              sAssigneeList[:-1], lEstimateValue, sPhase, sEscDefect,sLabels]
 
@@ -111,9 +111,10 @@ from openpyxl.styles import Font
 FILEOUTPUT = Workbook()
 
 ws = FILEOUTPUT.create_sheet(title="Data")
+sh = FILEOUTPUT['Sheet']
+FILEOUTPUT.remove(sh)
 
-
-headers = ['Repository', 'Issue Number', 'Issue Title', 'User Story', 'Pipeline', 'Issue Author',
+headers = ['Repository', 'Issue Number', 'Issue Title', 'Pipeline', 'Issue Author',
 	'Created At', 'Milestone', 'Milestone End Date', 'Assigned To', 'Estimate Value', 'Phase','Escaped Defect','Labels']
 for i in range(len(headers)):
     ws.cell(column=(i+1),row=1,value = headers[i])
