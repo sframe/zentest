@@ -50,7 +50,7 @@ def write_issues(r, csvout, repo_name, repo_ID, starttime):
             lEstimateValue = zen_r.get("estimate", dict()).get('value', "")
             elapsedTime = time.time() - starttime
 
-            rowvalues =[repo_name, issue['number'], issue['title'], sPipeline, issue['user']['login'], issue['created_at'],
+            rowvalues =[repo_name, issue['number'], issue['title'], issue['body'], sPipeline, issue['user']['login'], issue['created_at'],
                              issue['milestone']['title'] if issue['milestone'] else "",issue['milestone']['due_on'] if issue['milestone'] else "",
                              sAssigneeList[:-1], lEstimateValue, sPhase, sEscDefect,sLabels]
 
@@ -114,7 +114,7 @@ ws = FILEOUTPUT.create_sheet(title="Data")
 sh = FILEOUTPUT['Sheet']
 FILEOUTPUT.remove(sh)
 
-headers = ['Repository', 'Issue Number', 'Issue Title', 'Pipeline', 'Issue Author',
+headers = ['Repository', 'Issue Number', 'Issue Title', 'User Story', 'Pipeline', 'Issue Author',
 	'Created At', 'Milestone', 'Milestone End Date', 'Assigned To', 'Estimate Value', 'Phase','Escaped Defect','Labels']
 for i in range(len(headers)):
     ws.cell(column=(i+1),row=1,value = headers[i])
