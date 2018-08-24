@@ -6,6 +6,7 @@ import time
 import os
 import argparse
 import openpyxl
+import markdown
 
 
 """
@@ -49,8 +50,12 @@ def write_issues(r, csvout, repo_name, repo_ID, starttime):
             sPipeline = zen_r.get("pipeline", dict()).get('name', "")
             lEstimateValue = zen_r.get("estimate", dict()).get('value', "")
             elapsedTime = time.time() - starttime
+            if HTMLFLAG == 1:
+            	userstory = markdown.markdown(issue['body'])
+            else:
+            	userstory = issue['body']
 
-            rowvalues =[repo_name, issue['number'], issue['title'], issue['body'], sPipeline, issue['user']['login'], issue['created_at'],
+            rowvalues =[repo_name, issue['number'], issue['title'], userstory, sPipeline, issue['user']['login'], issue['created_at'],
                              issue['milestone']['title'] if issue['milestone'] else "",issue['milestone']['due_on'] if issue['milestone'] else "",
                              sAssigneeList[:-1], lEstimateValue, sPhase, sEscDefect,sLabels]
 
@@ -91,7 +96,8 @@ PAYLOAD = ""
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--file_name', help = 'file_name=filename.txt')
-parser.add_argument('--repo_list', nargs='+', help = 'repo_list = owner/repo zenhub-id')
+parser.add_argument('--repo_list', nargs='+', help='repo_list owner/repo zenhub-id')
+parser.add_argument('--html', default=0, type=int, help='html=1')
 args = parser.parse_args()
 
 REPO_LIST = args.repo_list
@@ -102,6 +108,7 @@ ZENHUB_API_RATE_LIMIT = 100
 TXTOUT = open('data.json', 'w')
 ISSUES = 0
 FILENAME = args.file_name
+HTMLFLAG = args.html
 
 from openpyxl import Workbook
 from openpyxl.compat import range
@@ -114,7 +121,7 @@ ws = FILEOUTPUT.create_sheet(title="Data")
 sh = FILEOUTPUT['Sheet']
 FILEOUTPUT.remove(sh)
 
-headers = ['Repository', 'Issue Number', 'Issue Title', 'User Story', 'Pipeline', 'Issue Author',
+headers = ['Repository', 'Issue Number', 'Issue Title', 'User Story','Pipeline', 'Issue Author',
 	'Created At', 'Milestone', 'Milestone End Date', 'Assigned To', 'Estimate Value', 'Phase','Escaped Defect','Labels']
 for i in range(len(headers)):
     ws.cell(column=(i+1),row=1,value = headers[i])
