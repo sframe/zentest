@@ -25,7 +25,8 @@ def get_comments(repo_name, issue_id):
     #json.dump(r_json, open('data.json', 'w'), indent=4)
     comment_sum = ''
     for comment in r_json:
-        comment_sum = comment_sum + str(comment['body'])
+        c_login = comment.get("user", dict()).get('login', "")
+        comment_sum = '@'+c_login+' - '+comment_sum + str(comment['body'])
     return comment_sum
     # more pages? examine the 'link' header returned
     """ if 'link' in r.headers:
@@ -44,7 +45,7 @@ def get_comments(repo_name, issue_id):
                 break
     """
 
-def write_issues(r, csvout, repo_name, repo_ID, starttime):
+def write_issues(r, csvout, repo_name, repo_ID):
     if not r.status_code == 200:
         raise Exception(r.status_code)
 
@@ -80,7 +81,6 @@ def write_issues(r, csvout, repo_name, repo_ID, starttime):
             #add output of the payload for records not found
             sPipeline = zen_r.get("pipeline", dict()).get('name', "")
             lEstimateValue = zen_r.get("estimate", dict()).get('value', "")
-            elapsedTime = time.time() - starttime
             if HTMLFLAG == 1:
             	userstory = markdown.markdown(issue['body'])
             else:
@@ -97,8 +97,9 @@ def write_issues(r, csvout, repo_name, repo_ID, starttime):
             for i in range(len(rowvalues)):
                 ws.cell(column=(i+1),row=1+ISSUES,value = rowvalues[i])
             
-#Wait added for the ZenHub api rate limit of 100 requests per minute, wait after the rate limit - 1 issues have been processed
+            #Wait added for the ZenHub api rate limit of 100 requests per minute, wait after the rate limit - 1 issues have been processed
             if ISSUES%(ZENHUB_API_RATE_LIMIT-1) == 0:
+                print('waiting for API rate limit')
                 time.sleep(45)
         else:
             print ('You have skipped %s Pull Requests' % ISSUES)
@@ -108,8 +109,7 @@ def get_issues(repo_data):
     repo_ID = repo_data[1]
     issues_for_repo_url = 'https://api.github.com/repos/%s/issues?state=all' % repo_name
     r = requests.get(issues_for_repo_url, auth=AUTH)
-    starttime = time.time()
-    write_issues(r, FILEOUTPUT, repo_name, repo_ID, starttime)
+    write_issues(r, FILEOUTPUT, repo_name, repo_ID)
     # more pages? examine the 'link' header returned
     if 'link' in r.headers:
         pages = dict(
@@ -122,7 +122,7 @@ def get_issues(repo_data):
                  [link.split(';') for link in
                   r.headers['link'].split(',')]])
             r = requests.get(pages['next'], auth=AUTH)
-            write_issues(r, FILEOUTPUT, repo_name, repo_ID, starttime)
+            write_issues(r, FILEOUTPUT, repo_name, repo_ID)
             if pages['next'] == pages['last']:
                 break
 
