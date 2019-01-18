@@ -38,7 +38,10 @@ def write_issues(git_response, repo_name, repo_id):
     for issue in r_json:
         issue_number = str(issue['number'])
         issue_url = f'{zen_url}{issue_number}?{ACCESS_TOKEN}'
-        zen_r = requests.get(issue_url).json()
+        zen_response = requests.get(issue_url)
+        if not zen_response.status_code == 200:
+            raise Exception(zen_response.status_code)
+        zen_r = zen_response.json()
         #call here to get all comments
         comments = ''
         if issue['comments'] > 0:
