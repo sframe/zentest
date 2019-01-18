@@ -84,9 +84,6 @@ def write_issues(git_response, repo_name, repo_id):
             userstory = markdown.markdown(issue['body'])
         else:
             userstory = issue['body']
-        #add the comments to the user story if they exist
-        if issue['comments'] > 0:
-            userstory = userstory + 'Comments: '+comments
         rowvalues = [repo_name, issue['number'], issue['title'],
                      userstory, s_pipeline, issue['user']['login'], issue['created_at'],
                      issue['milestone']['title'] if issue['milestone']
