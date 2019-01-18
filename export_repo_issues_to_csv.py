@@ -66,17 +66,19 @@ def write_issues(git_response, repo_name, repo_id):
         s_labels = ''
         for i in issue['assignees'] if issue['assignees'] else []:
             s_assignee_list += i['login'] + ','
+        #add output of the payload for records not found
+        s_pipeline = zen_r.get("pipeline", dict()).get('name', "")
         for label in issue['labels'] if issue['labels'] else []:
             rules = [
-                "Low" in label['name'],
-                "Medium" in label['name'],
-                "High" in label['name'],
+                'Low' in label['name'],
+                'Medium' in label['name'],
+                'High' in label['name'],
             ]
             s_labels += label['name'] + ','
             if any(rules):
                 s_priority = label['name']
-        #add output of the payload for records not found
-        s_pipeline = zen_r.get("pipeline", dict()).get('name', "")
+        if (not s_priority and s_pipeline == 'Closed'):
+            s_priority = 'High'
         estimate_value = zen_r.get("estimate", dict()).get('value', "")
         if HTMLFLAG == 1:
             userstory = markdown.markdown(issue['body'])
@@ -96,7 +98,6 @@ def write_issues(git_response, repo_name, repo_id):
         #wait after the rate limit - 1 issues have been processed
         if ISSUES%(ZENHUB_API_RATE_LIMIT-1) == 0:
             print(f'{ISSUES} issues processed')
-            print('waiting for API rate limit')
             time.sleep(45)
 
 def get_issues(repo_data):
