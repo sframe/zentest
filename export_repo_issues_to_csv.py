@@ -7,7 +7,6 @@ Derived from https://gist.github.com/Kebiled/7b035d7518fdfd50d07e2a285aff3977
 """
 
 #!/usr/bin/env python
-import json
 import argparse
 import os
 import time
@@ -17,9 +16,14 @@ from openpyxl import Workbook
 from openpyxl.compat import range
 from openpyxl.styles import Font
 
-
-
 def get_comments(repo_name, issue_id):
+    """
+    Get the comments on an issue and concatenates them into
+    one field.
+    :param repo_name: the name of the github repo
+    :param issue_id: the issue number
+    :out comment_sum: a concantenated field with all comments
+    """
     comments_for_issue_url = f'https://api.github.com/repos/{repo_name}/issues/{issue_id}/comments'
     git_response = requests.get(comments_for_issue_url, auth=AUTH)
     r_json = git_response.json()
@@ -30,6 +34,12 @@ def get_comments(repo_name, issue_id):
     return comment_sum
 
 def write_issues(git_response, repo_name, repo_id):
+    """
+    Writes issues to an Excel file
+    :param git_response: the response for the github call
+    :param repo_name: the name of the github repo
+    :param repo_id: the id for the repo used to reference the ZenHub fields
+    """
     if not git_response.status_code == 200:
         raise Exception(git_response.status_code)
 
@@ -47,7 +57,6 @@ def write_issues(git_response, repo_name, repo_id):
         if issue['comments'] > 0:
             comments = get_comments(repo_name, issue_number)
 
-        global PAYLOAD
 
         global ISSUES
         ISSUES += 1
@@ -86,10 +95,16 @@ def write_issues(git_response, repo_name, repo_id):
         #Wait added for the ZenHub api rate limit of 100 requests per minute,
         #wait after the rate limit - 1 issues have been processed
         if ISSUES%(ZENHUB_API_RATE_LIMIT-1) == 0:
+            print(f'{ISSUES} issues processed')
             print('waiting for API rate limit')
             time.sleep(45)
 
 def get_issues(repo_data):
+    """
+    Get an issue attributes
+    :param repo_data: the environment variable with the repo_name
+    and the ZenHub id for the repository
+    """
     repo_name = repo_data[0]
     repo_id = repo_data[1]
     issues_for_repo_url = f'https://api.github.com/repos/{repo_name}/issues?state=all'
@@ -111,9 +126,6 @@ def get_issues(repo_data):
             if pages['next'] == pages['last']:
                 break
 
-
-PAYLOAD = ""
-
 PARSER = argparse.ArgumentParser()
 PARSER.add_argument('--file_name', help='file_name=filename.txt')
 PARSER.add_argument('--repo_list', nargs='+', help='repo_list owner/repo zenhub-id')
@@ -123,7 +135,7 @@ ARGS = PARSER.parse_args()
 REPO_LIST = ARGS.repo_list
 AUTH = ('token', os.environ['AUTH'])
 ACCESS_TOKEN = os.environ['ACCESS_TOKEN']
-ZENHUB_API_RATE_LIMIT = 100
+ZENHUB_API_RATE_LIMIT = 101
 
 TXTOUT = open('data.json', 'w')
 ISSUES = 0
@@ -145,5 +157,4 @@ for h in range(len(HEADERS)):
 
 #for repo_data in REPO_LIST:
 get_issues(REPO_LIST)
-json.dump(PAYLOAD, open('data.json', 'w'), indent=4)
 FILEOUTPUT.save(filename=FILENAME)
