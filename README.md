@@ -25,8 +25,11 @@ setx AUTH XXXX
 The command line parameters are as follows:
 
 --file_name The name of the Excel file to create
+
 --repo_list github_owner/github_repo zenhub-id
+
 You can find you zenhub-id by going to ZenHub id by looking in the url when you go to Zenhub.com for the repository, repos=<zenhub-id>
+ 
 --html This is either 0 or 1, most of the time you will want 0 which leaves the format in Markdown
 
 Example:
