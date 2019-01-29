@@ -1,7 +1,7 @@
 # zentest
 This Python script exports github issues with the ZenHub additional attributes to an Excel file.
 
-#Installation
+# Installation
 To use this, you need Python 3 installed with the following libraries:
  - argparse
  - requests
