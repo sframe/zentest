@@ -268,10 +268,7 @@ def get_issues(repo_data, issues_dict):
     if 'link' in issue_response.headers:
         pages = get_pages(issue_response)
         while 'last' in pages and 'next' in pages:
-            pages = dict(
-                [(rel[6:-1], url[url.index('<') + 1:-1]) for url, rel in
-                 [link.split(';') for link in
-                  issue_response.headers['link'].split(',')]])
+            pages = get_pages(issue_response)
             issue_response = requests.get(pages['next'], auth=AUTH)
             response = issue_response.json()
             issue_count = write_issues(response, repo_name, repo_id, issues_dict, issue_count)
