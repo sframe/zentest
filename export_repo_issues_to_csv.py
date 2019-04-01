@@ -5,7 +5,7 @@ to retrieve Issues from a repository that token has access to.
 Supports Github API v3 and ZenHubs current working API.
 Derived from https://gist.github.com/Kebiled/7b035d7518fdfd50d07e2a285aff3977
 """
-
+# pylint: disable=W0622
 #!/usr/bin/env python
 import argparse
 import os
@@ -107,77 +107,148 @@ def get_comments(repo_name, issue_id):
         comment_sum = '@'+c_login+' - '+comment_sum + str(comment['body'])
     return comment_sum
 
-def write_issues(git_response, repo_name, repo_id, issues):
+def throttle_zenhub(issue_cnt):
+    """
+    Wait added for the ZenHub api rate limit of 100 requests per minute,
+    wait after the rate limit - 1 issues have been processed
+    :param issue_cnt: the current issue count
+    """
+    if issue_cnt%(ZENHUB_API_RATE_LIMIT-1) == 0:
+        print(f'{issue_cnt} issues processed')
+        time.sleep(45)
+
+def get_assignees(issue):
+    """
+    Convert the assignees for an issue to a comma-separated string
+    :param issue: the current issue
+    :returns s_assignees: the concatenated list of assignees
+    """
+    s_assignee_list = ''
+    for assignee in issue['assignees'] if issue['assignees'] else []:
+        s_assignee_list += assignee['login'] + ','
+    return s_assignee_list
+
+def get_epics_string(issues, issue):
+    """
+    Convert the epics for an issue to a comma-separated string
+    :param issues: a dictionary mapping of the issues to epics
+    :param issue: the current issue
+    :returns s_epics: the concatenated list of epic ids
+    """
+    s_epics = ''
+    try:
+        epics = issues[issue['number']]['epic_issue']
+        for epic in epics if epics else []:
+            s_epics += str(epic) + ','
+    except KeyError:
+        s_epics = ''
+    return s_epics
+
+def get_zenhubresponse(repo_id, issue_number):
+    """
+    Gets the ZenHub data for the issue
+    :param repo_id: the id for the repo used to reference the ZenHub fields
+    :param issue_number: the specific issue number
+    :returns zen_r: a json object of the issue
+    """
+    zen_url = f'https://api.zenhub.io/p1/repositories/{repo_id}/issues/'
+    issue_url = f'{zen_url}{issue_number}?{ACCESS_TOKEN}'
+    zen_response = requests.get(issue_url)
+    if not zen_response.status_code == 200:
+        raise Exception(zen_response.status_code)
+    zen_r = zen_response.json()
+    s_pipeline = zen_r.get("pipeline", dict()).get('name', "")
+    estimate_value = zen_r.get("estimate", dict()).get('value', "")
+    return s_pipeline, estimate_value
+
+def get_labels_string(issue):
+    """
+    concatenates labels into a string
+    :param issue: the current issue
+    :returns s_labels: the string of comma-separated labels
+    :returns s_priority: the priority for the issue
+    """
+    s_priority = ''
+    s_labels = ''
+    for label in issue['labels'] if issue['labels'] else []:
+        rules = [
+            'Low' in label['name'],
+            'Medium' in label['name'],
+            'High' in label['name'],
+        ]
+        s_labels += label['name'] + ','
+        if any(rules):
+            s_priority = label['name']
+    return s_labels, s_priority
+
+def write_row(issue, repo_name, repo_id, userstory, s_assignee_list,
+              s_priority, s_labels, s_epics, issue_cnt):
+    """
+    Writes rows to an Excel file
+    """
+    issue_number = str(issue['number'])
+    s_pipeline, estimate_value = get_zenhubresponse(repo_id, issue_number)
+    comments = ''
+    if issue['comments'] > 0:
+        comments = get_comments(repo_name, issue_number)
+    if (not s_priority and s_pipeline == 'Closed'):
+        s_priority = 'High'
+    rowvalues = [repo_name, issue['number'], issue['title'],
+                 userstory, s_pipeline, issue['user']['login'], issue['created_at'],
+                 issue['milestone']['title'] if issue['milestone']
+                 else "", issue['milestone']['due_on'] if issue['milestone'] else "",
+                 s_assignee_list[:-1], estimate_value, s_priority, s_labels,
+                 comments, s_epics[:-1]]
+    for i in range(len(rowvalues)):
+        WS.cell(column=(i+1), row=1+issue_cnt, value=rowvalues[i])
+
+def write_issues(r_json, repo_name, repo_id, issues, issue_cnt):
     """
     Writes issues to an Excel file
     :param git_response: the response for the github call
     :param repo_name: the name of the github repo
     :param repo_id: the id for the repo used to reference the ZenHub fields
+    :param issues: dictionary of the mapping for issues to epics
+    :param issue_cnt: counter for the starting issue
+    :return issue_cnt: the count of issues processed
     """
-    if not git_response.status_code == 200:
-        raise Exception(git_response.status_code)
-
-    r_json = git_response.json()
-    zen_url = f'https://api.zenhub.io/p1/repositories/{repo_id}/issues/'
     for issue in r_json:
-        issue_number = str(issue['number'])
-        issue_url = f'{zen_url}{issue_number}?{ACCESS_TOKEN}'
-        zen_response = requests.get(issue_url)
-        if not zen_response.status_code == 200:
-            raise Exception(zen_response.status_code)
-        zen_r = zen_response.json()
-        #call here to get all comments
-        comments = ''
-        if issue['comments'] > 0:
-            comments = get_comments(repo_name, issue_number)
-
-
-        global ISSUES
-        ISSUES += 1
-        s_assignee_list = ''
-        s_priority = ''
-        s_pipeline = ''
-        s_labels = ''
-        s_epics = ''
-        for i in issue['assignees'] if issue['assignees'] else []:
-            s_assignee_list += i['login'] + ','
-        #add output of the payload for records not found
-        s_pipeline = zen_r.get("pipeline", dict()).get('name', "")
-        try:
-            epics = issues[issue['number']]['epic_issue']
-            for epic in epics if epics else []:
-                s_epics += str(epic) + ','
-        except KeyError:
-            s_epics = ''
-        for label in issue['labels'] if issue['labels'] else []:
-            rules = [
-                'Low' in label['name'],
-                'Medium' in label['name'],
-                'High' in label['name'],
-            ]
-            s_labels += label['name'] + ','
-            if any(rules):
-                s_priority = label['name']
-        if (not s_priority and s_pipeline == 'Closed'):
-            s_priority = 'High'
-        estimate_value = zen_r.get("estimate", dict()).get('value', "")
+        issue_cnt += 1
+        s_assignee_list = get_assignees(issue)
+        s_epics = get_epics_string(issues, issue)
+        s_labels, s_priority = get_labels_string(issue)
         if HTMLFLAG == 1:
             userstory = markdown.markdown(issue['body'])
         else:
             userstory = issue['body']
-        rowvalues = [repo_name, issue['number'], issue['title'],
-                     userstory, s_pipeline, issue['user']['login'], issue['created_at'],
-                     issue['milestone']['title'] if issue['milestone']
-                     else "", issue['milestone']['due_on'] if issue['milestone'] else "",
-                     s_assignee_list[:-1], estimate_value, s_priority, s_labels, comments, s_epics[:-1]]
-        for i in range(len(rowvalues)):
-            WS.cell(column=(i+1), row=1+ISSUES, value=rowvalues[i])
-        print(f'{ISSUES}')
-        #Wait added for the ZenHub api rate limit of 100 requests per minute,
-        #wait after the rate limit - 1 issues have been processed
-        if ISSUES%(ZENHUB_API_RATE_LIMIT-1) == 0:
-            print(f'{ISSUES} issues processed')
-            time.sleep(45)
+        write_row(issue, repo_name, repo_id, userstory, s_assignee_list,
+                  s_priority, s_labels, s_epics, issue_cnt)
+        print(f'{issue_cnt}')
+        throttle_zenhub(issue_cnt)
+    return issue_cnt
+
+def get_pages(issue_response):
+    """
+    gets additional pages information
+    :param issue_response: the response for the github call for the issue
+    :returns pages_dict: a dictionary object for the pages link
+    """
+    pages_dict = dict(
+        [(rel[6:-1], url[url.index('<') + 1:-1]) for url, rel in
+         [link.split(';') for link in
+          issue_response.headers['link'].split(',')]])
+    return pages_dict
+
+def get_nextpage_response(pages):
+    """
+    gets the next page information
+    :param pages: a dictionary object for the pages link
+    :returns issue_response.json(): a json document of the next page link
+    """
+    issue_response = requests.get(pages['next'], auth=AUTH)
+    if not issue_response.status_code == 200:
+        raise Exception(issue_response.status_code)
+    return issue_response.json()
 
 def get_issues(repo_data, issues_dict):
     """
@@ -189,22 +260,24 @@ def get_issues(repo_data, issues_dict):
     repo_id = repo_data[1]
     issues_for_repo_url = f'https://api.github.com/repos/{repo_name}/issues?state=all'
     issue_response = requests.get(issues_for_repo_url, auth=AUTH)
-    write_issues(issue_response, repo_name, repo_id, issues_dict)
+    if not issue_response.status_code == 200:
+        raise Exception(issue_response.status_code)
+    response = issue_response.json()
+    issue_count = write_issues(response, repo_name, repo_id, issues_dict, 0)
     # more pages? examine the 'link' header returned
     if 'link' in issue_response.headers:
-        pages = dict(
-            [(rel[6:-1], url[url.index('<') + 1:-1]) for url, rel in
-             [link.split(';') for link in
-              issue_response.headers['link'].split(',')]])
+        pages = get_pages(issue_response)
         while 'last' in pages and 'next' in pages:
             pages = dict(
                 [(rel[6:-1], url[url.index('<') + 1:-1]) for url, rel in
                  [link.split(';') for link in
                   issue_response.headers['link'].split(',')]])
             issue_response = requests.get(pages['next'], auth=AUTH)
-            write_issues(issue_response, repo_name, repo_id, issues)
+            response = issue_response.json()
+            issue_count = write_issues(response, repo_name, repo_id, issues_dict, issue_count)
             if pages['next'] == pages['last']:
                 break
+
 
 PARSER = argparse.ArgumentParser()
 PARSER.add_argument('--file_name', help='file_name=filename.txt')
@@ -236,8 +309,8 @@ for h in range(len(HEADERS)):
     WS.cell(column=(h+1), row=1).font = Font(bold=True)
 
 #get the epic dictionary
-issues = create_epic_dict(143072984)
+ISSUES = create_epic_dict(REPO_LIST[1])
 
 #for repo_data in REPO_LIST:
-get_issues(REPO_LIST, issues)
+get_issues(REPO_LIST, ISSUES)
 FILEOUTPUT.save(filename=FILENAME)
