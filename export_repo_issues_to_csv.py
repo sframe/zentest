@@ -182,12 +182,14 @@ def get_labels_string(issue):
     return s_labels, s_priority
 
 def write_row(issue, repo_name, repo_id, userstory, s_assignee_list,
-              s_priority, s_labels, s_epics, issue_cnt):
+              s_priority, s_labels, s_epics, s_state, issue_cnt):
     """
     Writes rows to an Excel file
     """
     issue_number = str(issue['number'])
     s_pipeline, estimate_value = get_zenhubresponse(repo_id, issue_number)
+    if s_state == 'closed':
+        s_pipeline = 'Closed'
     comments = ''
     if issue['comments'] > 0:
         comments = get_comments(repo_name, issue_number)
@@ -217,12 +219,13 @@ def write_issues(r_json, repo_name, repo_id, issues, issue_cnt):
         s_assignee_list = get_assignees(issue)
         s_epics = get_epics_string(issues, issue)
         s_labels, s_priority = get_labels_string(issue)
+        s_state = issue['state']
         if HTMLFLAG == 1:
             userstory = markdown.markdown(issue['body'])
         else:
             userstory = issue['body']
         write_row(issue, repo_name, repo_id, userstory, s_assignee_list,
-                  s_priority, s_labels, s_epics, issue_cnt)
+                  s_priority, s_labels, s_epics, s_state, issue_cnt)
         print(f'{issue_cnt}')
         throttle_zenhub(issue_cnt)
     return issue_cnt
