@@ -12,6 +12,7 @@ import os
 import time
 import requests
 import markdown
+from retrying import retry
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
@@ -143,6 +144,16 @@ def get_epics_string(issues, issue):
         s_epics = ''
     return s_epics
 
+@retry(wait_exponential_multiplier=1000, wait_exponential_max=10000)
+def get_zenresponse(issue_url):
+    """
+    Gets the ZenHub data for the issue
+    :param issue_url: the specific url for the issue number
+    :returns zen_response: the response for the issue
+    """
+    zen_response = requests.get(issue_url)
+    return zen_response
+
 def get_zenhubresponse(repo_id, issue_number):
     """
     Gets the ZenHub data for the issue
@@ -152,7 +163,7 @@ def get_zenhubresponse(repo_id, issue_number):
     """
     zen_url = f'https://api.zenhub.io/p1/repositories/{repo_id}/issues/'
     issue_url = f'{zen_url}{issue_number}?{ACCESS_TOKEN}'
-    zen_response = requests.get(issue_url)
+    zen_response = get_zenresponse(issue_url)
     if not zen_response.status_code == 200:
         raise Exception(zen_response.status_code)
     zen_r = zen_response.json()
