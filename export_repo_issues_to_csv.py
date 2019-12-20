@@ -13,7 +13,6 @@ import time
 import requests
 import markdown
 from openpyxl import Workbook
-from openpyxl.compat import range
 from openpyxl.styles import Font
 
 class AttrDict(dict):
@@ -226,7 +225,7 @@ def write_issues(r_json, repo_name, repo_id, issues, issue_cnt):
             userstory = issue['body']
         write_row(issue, repo_name, repo_id, userstory, s_assignee_list,
                   s_priority, s_labels, s_epics, s_state, issue_cnt)
-        print(f'{issue_cnt}')
+        print(f'issue count: {issue_cnt}')
         throttle_zenhub(issue_cnt)
     return issue_cnt
 
@@ -288,7 +287,7 @@ ARGS = PARSER.parse_args()
 REPO_LIST = ARGS.repo_list
 AUTH = ('token', os.environ['AUTH'])
 ACCESS_TOKEN = os.environ['ACCESS_TOKEN']
-ZENHUB_API_RATE_LIMIT = 101
+ZENHUB_API_RATE_LIMIT = 51
 
 TXTOUT = open('data.json', 'w')
 ISSUES = 0
