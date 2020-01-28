@@ -7,6 +7,7 @@ To use this, you need Python 3 installed with the following libraries:
  - requests
  - markdown
  - openpyxl
+ - retrying
 
 Get an API token for your GitHub account under Settings->Developer settings->Personal Access Tokens
  - I am not positive all the rights you need on the token, but at a minimum, you need the repo rights
