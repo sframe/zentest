@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 Exports Issues from a repository to an Excel file
 Uses basic authentication (Github API Token and Zenhub API Token)
@@ -5,8 +7,6 @@ to retrieve Issues from a repository that token has access to.
 Supports Github API v3 and ZenHubs current working API.
 Derived from https://gist.github.com/Kebiled/7b035d7518fdfd50d07e2a285aff3977
 """
-# pylint: disable=W0622
-#!/usr/bin/env python
 import argparse
 import os
 import time
@@ -29,6 +29,7 @@ class AttrDict(dict):
     def __delattr__(self, key):
         del self[key]
 
+
 def get_epics(repo_id):
     """
     Get the epic(s) on an issue and concatenates them into
@@ -36,12 +37,13 @@ def get_epics(repo_id):
     :param repo_name: the name of the github repo
     :out epic_sum: a concantenated field with all epics
     """
-    zen_url = f'https://api.zenhub.io/p1/repositories/{repo_id}/epics/?{ACCESS_TOKEN}'
-    zen_response = requests.get(zen_url)
+    zen_url = f'https://api.zenhub.io/p1/repositories/{repo_id}/epics/'
+    zen_response = requests.get(zen_url, headers=ZENHUB_HEADERS)
     if not zen_response.status_code == 200:
-        raise Exception(zen_response.status_code)
+        raise Exception(zen_response.json())
     r_json = zen_response.json()
     return r_json
+
 
 def get_epic_issues(repo_id, epic_issue_id):
     """
@@ -51,12 +53,11 @@ def get_epic_issues(repo_id, epic_issue_id):
     :out epic_sum: a concantenated field with all epics
     """
     zen_url = f'https://api.zenhub.io/p1/repositories/'
-    epic_url = f'{zen_url}{repo_id}/epics/{epic_issue_id}?{ACCESS_TOKEN}'
-    zen_response = requests.get(epic_url)
-    if not zen_response.status_code == 200:
-        raise Exception(zen_response.status_code)
+    epic_url = f'{zen_url}{repo_id}/epics/{epic_issue_id}'
+    zen_response = get_zenresponse(epic_url)
     r_json = zen_response.json()
     return r_json
+
 
 def create_epic_dict(repo_id):
     """
@@ -90,6 +91,7 @@ def create_epic_dict(repo_id):
     time.sleep(45)
     return issue_epics
 
+
 def get_comments(repo_name, issue_id):
     """
     Get the comments on an issue and concatenates them into
@@ -99,13 +101,14 @@ def get_comments(repo_name, issue_id):
     :out comment_sum: a concantenated field with all comments
     """
     comments_for_issue_url = f'https://api.github.com/repos/{repo_name}/issues/{issue_id}/comments'
-    git_response = requests.get(comments_for_issue_url, auth=AUTH)
+    git_response = requests.get(comments_for_issue_url, headers=GITHUB_HEADERS)
     r_json = git_response.json()
     comment_sum = ''
     for comment in r_json:
         c_login = comment.get("user", dict()).get('login', "")
         comment_sum = '@'+c_login+' - '+comment_sum + str(comment['body'])
     return comment_sum
+
 
 def throttle_zenhub(issue_cnt):
     """
@@ -117,6 +120,7 @@ def throttle_zenhub(issue_cnt):
         print(f'{issue_cnt} issues processed')
         time.sleep(45)
 
+
 def get_assignees(issue):
     """
     Convert the assignees for an issue to a comma-separated string
@@ -127,6 +131,7 @@ def get_assignees(issue):
     for assignee in issue['assignees'] if issue['assignees'] else []:
         s_assignee_list += assignee['login'] + ','
     return s_assignee_list
+
 
 def get_epics_string(issues, issue):
     """
@@ -144,6 +149,7 @@ def get_epics_string(issues, issue):
         s_epics = ''
     return s_epics
 
+
 @retry(wait_exponential_multiplier=1000, wait_exponential_max=10000)
 def get_zenresponse(issue_url):
     """
@@ -151,8 +157,11 @@ def get_zenresponse(issue_url):
     :param issue_url: the specific url for the issue number
     :returns zen_response: the response for the issue
     """
-    zen_response = requests.get(issue_url)
+    zen_response = requests.get(issue_url, headers=ZENHUB_HEADERS)
+    if not zen_response.status_code == 200:
+        raise Exception(zen_response.json())
     return zen_response
+
 
 def get_zenhubresponse(repo_id, issue_number):
     """
@@ -162,14 +171,13 @@ def get_zenhubresponse(repo_id, issue_number):
     :returns zen_r: a json object of the issue
     """
     zen_url = f'https://api.zenhub.io/p1/repositories/{repo_id}/issues/'
-    issue_url = f'{zen_url}{issue_number}?{ACCESS_TOKEN}'
+    issue_url = f'{zen_url}{issue_number}'
     zen_response = get_zenresponse(issue_url)
-    if not zen_response.status_code == 200:
-        raise Exception(zen_response.status_code)
     zen_r = zen_response.json()
     s_pipeline = zen_r.get("pipeline", dict()).get('name', "")
     estimate_value = zen_r.get("estimate", dict()).get('value', "")
     return s_pipeline, estimate_value
+
 
 def get_labels_string(issue):
     """
@@ -190,6 +198,7 @@ def get_labels_string(issue):
         if any(rules):
             s_priority = label['name']
     return s_labels, s_priority
+
 
 def write_row(issue, repo_name, repo_id, userstory, s_assignee_list,
               s_priority, s_labels, s_epics, s_state, issue_cnt):
@@ -213,6 +222,7 @@ def write_row(issue, repo_name, repo_id, userstory, s_assignee_list,
                  comments, s_epics[:-1]]
     for i in range(len(rowvalues)):
         WS.cell(column=(i+1), row=1+issue_cnt, value=rowvalues[i])
+
 
 def write_issues(r_json, repo_name, repo_id, issues, issue_cnt):
     """
@@ -240,6 +250,7 @@ def write_issues(r_json, repo_name, repo_id, issues, issue_cnt):
         throttle_zenhub(issue_cnt)
     return issue_cnt
 
+
 def get_pages(issue_response):
     """
     gets additional pages information
@@ -252,16 +263,19 @@ def get_pages(issue_response):
           issue_response.headers['link'].split(',')]])
     return pages_dict
 
+
 def get_nextpage_response(pages):
     """
     gets the next page information
     :param pages: a dictionary object for the pages link
     :returns issue_response.json(): a json document of the next page link
     """
-    issue_response = requests.get(pages['next'], auth=AUTH)
+    issue_response = requests.get(pages['next'], headers=GITHUB_HEADERS)
     if not issue_response.status_code == 200:
+        print(issue_response.json())
         raise Exception(issue_response.status_code)
     return issue_response.json()
+
 
 def get_issues(repo_data, issues_dict):
     """
@@ -272,9 +286,9 @@ def get_issues(repo_data, issues_dict):
     repo_name = repo_data[0]
     repo_id = repo_data[1]
     issues_for_repo_url = f'https://api.github.com/repos/{repo_name}/issues?state=all'
-    issue_response = requests.get(issues_for_repo_url, auth=AUTH)
+    issue_response = requests.get(issues_for_repo_url, headers=GITHUB_HEADERS)
     if not issue_response.status_code == 200:
-        raise Exception(issue_response.status_code)
+        raise Exception(issue_response.json())
     response = issue_response.json()
     issue_count = write_issues(response, repo_name, repo_id, issues_dict, 0)
     # more pages? examine the 'link' header returned
@@ -282,7 +296,7 @@ def get_issues(repo_data, issues_dict):
         pages = get_pages(issue_response)
         while 'last' in pages and 'next' in pages:
             pages = get_pages(issue_response)
-            issue_response = requests.get(pages['next'], auth=AUTH)
+            issue_response = requests.get(pages['next'], headers=GITHUB_HEADERS)
             response = issue_response.json()
             issue_count = write_issues(response, repo_name, repo_id, issues_dict, issue_count)
             if pages['next'] == pages['last']:
@@ -296,9 +310,16 @@ PARSER.add_argument('--html', default=0, type=int, help='html=1')
 ARGS = PARSER.parse_args()
 
 REPO_LIST = ARGS.repo_list
-AUTH = ('token', os.environ['AUTH'])
-ACCESS_TOKEN = os.environ['ACCESS_TOKEN']
+GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
+ZENHUB_TOKEN = os.environ['ZENHUB_TOKEN']
 ZENHUB_API_RATE_LIMIT = 51
+
+GITHUB_HEADERS = {
+    'Accept': 'application/vnd.github.v3+json',
+    'Authorization': f'token {GITHUB_TOKEN}',
+}
+
+ZENHUB_HEADERS = { 'X-Authentication-Token': ZENHUB_TOKEN }
 
 TXTOUT = open('data.json', 'w')
 ISSUES = 0
