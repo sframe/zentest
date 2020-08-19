@@ -201,28 +201,28 @@ def get_labels_string(issue):
     return s_labels, s_priority
 
 
-def write_row(issue, repo_name, repo_id, userstory, s_assignee_list,
-              s_priority, s_labels, s_epics, s_state, issue_cnt):
+def write_row(issue, row):
     """
     Writes rows to an Excel file
     """
     issue_number = str(issue['number'])
-    s_pipeline, estimate_value = get_zenhubresponse(repo_id, issue_number)
-    if s_state == 'closed':
-        s_pipeline = 'Closed'
-    comments = ''
+    row['s_pipeline'], row['estimate_value'] = get_zenhubresponse(row['repo_id'], issue_number)
+    if row['s_state'] == 'closed':
+        row['s_pipeline'] = 'Closed'
+    row['comments'] = ''
     if issue['comments'] > 0:
-        comments = get_comments(repo_name, issue_number)
-    if (not s_priority and s_pipeline == 'Closed'):
-        s_priority = 'High'
-    rowvalues = [repo_name, issue['number'], issue['title'],
-                 userstory, s_pipeline, issue['user']['login'], issue['created_at'],
+        row['comments'] = get_comments(row['repo_name'], issue_number)
+    if (not row['s_priority'] and row['s_pipeline'] == 'Closed'):
+        row['s_priority'] = 'High'
+    rowvalues = [row['repo_name'], issue['number'], issue['title'],
+                 row['userstory'], row['s_pipeline'], issue['user']['login'], issue['created_at'],
                  issue['milestone']['title'] if issue['milestone']
                  else "", issue['milestone']['due_on'] if issue['milestone'] else "",
-                 s_assignee_list[:-1], estimate_value, s_priority, s_labels,
-                 comments, s_epics[:-1]]
+                 row['s_assignee_list'][:-1], row['estimate_value'],
+                 row['s_priority'], row['s_labels'],
+                 row['comments'], row['s_epics'][:-1]]
     for i in range(len(rowvalues)):
-        WS.cell(column=(i+1), row=1+issue_cnt, value=rowvalues[i])
+        WS.cell(column=(i+1), row=1+row['issue_cnt'], value=rowvalues[i])
 
 
 def write_issues(r_json, repo_name, repo_id, issues, issue_cnt):
@@ -237,16 +237,24 @@ def write_issues(r_json, repo_name, repo_id, issues, issue_cnt):
     """
     for issue in r_json:
         issue_cnt += 1
-        s_assignee_list = get_assignees(issue)
-        s_epics = get_epics_string(issues, issue)
+        #s_assignee_list = get_assignees(issue)
+        #s_epics = get_epics_string(issues, issue)
         s_labels, s_priority = get_labels_string(issue)
-        s_state = issue['state']
+        #s_state = issue['state']
         if HTMLFLAG == 1:
             userstory = markdown.markdown(issue['body'])
         else:
             userstory = issue['body']
-        write_row(issue, repo_name, repo_id, userstory, s_assignee_list,
-                  s_priority, s_labels, s_epics, s_state, issue_cnt)
+        row = dict(repo_name=repo_name,
+                   repo_id=repo_id,
+                   userstory=userstory,
+                   s_assignee_list=get_assignees(issue),
+                   s_priority=s_priority,
+                   s_labels=s_labels,
+                   s_epics=get_epics_string(issues, issue),
+                   s_state=issue['state'],
+                   issue_cnt=issue_cnt)
+        write_row(issue, row)
         print(f'issue count: {issue_cnt}')
         throttle_zenhub(issue_cnt)
     return issue_cnt
