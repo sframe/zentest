@@ -10,6 +10,7 @@ Derived from https://gist.github.com/Kebiled/7b035d7518fdfd50d07e2a285aff3977
 import argparse
 import os
 import time
+import datetime
 import requests
 import markdown
 from retrying import retry
@@ -52,7 +53,7 @@ def get_epic_issues(repo_id, epic_issue_id):
     :param repo_name: the name of the github repo
     :out epic_sum: a concantenated field with all epics
     """
-    zen_url = f'https://api.zenhub.io/p1/repositories/'
+    zen_url = 'https://api.zenhub.io/p1/repositories/'
     epic_url = f'{zen_url}{repo_id}/epics/{epic_issue_id}'
     zen_response = get_zenresponse(epic_url)
     r_json = zen_response.json()
@@ -277,7 +278,7 @@ def get_nextpage_response(pages):
     return issue_response.json()
 
 
-def get_issues(repo_data, issues_dict):
+def get_issues(repo_data, issues_dict, since=None):
     """
     Get an issue attributes
     :param repo_data: the environment variable with the repo_name
@@ -286,6 +287,12 @@ def get_issues(repo_data, issues_dict):
     repo_name = repo_data[0]
     repo_id = repo_data[1]
     issues_for_repo_url = f'https://api.github.com/repos/{repo_name}/issues?state=all'
+
+    if since:
+        since_date = datetime.datetime.strptime(since, '%Y-%m-%d').strftime("%Y-%m-%dT%H:%M:%SZ")
+        print(f'Filtering since {since_date}...')
+        issues_for_repo_url = f'{issues_for_repo_url}&since={since_date}'
+        print(f'Request {issues_for_repo_url}...')
     issue_response = requests.get(issues_for_repo_url, headers=GITHUB_HEADERS)
     if not issue_response.status_code == 200:
         raise Exception(issue_response.json())
@@ -307,6 +314,7 @@ PARSER = argparse.ArgumentParser()
 PARSER.add_argument('--file_name', help='file_name=filename.txt')
 PARSER.add_argument('--repo_list', nargs='+', help='repo_list owner/repo zenhub-id')
 PARSER.add_argument('--html', default=0, type=int, help='html=1')
+PARSER.add_argument('--since', default=None, help='since date in the format of 2018-01-01')
 ARGS = PARSER.parse_args()
 
 REPO_LIST = ARGS.repo_list
@@ -319,12 +327,13 @@ GITHUB_HEADERS = {
     'Authorization': f'token {GITHUB_TOKEN}',
 }
 
-ZENHUB_HEADERS = { 'X-Authentication-Token': ZENHUB_TOKEN }
+ZENHUB_HEADERS = {'X-Authentication-Token': ZENHUB_TOKEN}
 
 TXTOUT = open('data.json', 'w')
 ISSUES = 0
 FILENAME = ARGS.file_name
 HTMLFLAG = ARGS.html
+SINCE = ARGS.since
 
 FILEOUTPUT = Workbook()
 
@@ -343,5 +352,5 @@ for h in range(len(HEADERS)):
 ISSUES = create_epic_dict(REPO_LIST[1])
 
 #for repo_data in REPO_LIST:
-get_issues(REPO_LIST, ISSUES)
+get_issues(REPO_LIST, ISSUES, SINCE)
 FILEOUTPUT.save(filename=FILENAME)
