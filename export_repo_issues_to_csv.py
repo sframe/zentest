@@ -319,8 +319,22 @@ def write_row(issue, row, worksheet):
                        row=1+row['issue_cnt'],
                        value=value)
 
+def write_headers(worksheet):
+    """
+    Writes headers to an Excel file
+    :param worksheet: the worksheet where the headers are written
+    :return issue_cnt: the count of issues processed
+    """
+    headers = ['Repository', 'Issue Number', 'Issue Title', 'User Story', 'Pipeline',
+               'Issue Author', 'Created At', 'Milestone', 'Milestone End Date',
+               'Assigned To', 'Estimate Value', 'Priority', 'Labels', 'Comments',
+               'Epics', 'Status', 'Blocked', 'Blocked By']
+    for i, header in enumerate(headers):
+        worksheet.cell(column=(i+1), row=1, value=header)
+        worksheet.cell(column=(i+1), row=1).font = Font(bold=True)
 
-def write_issues(r_json, repo_name, repo_id, issues, issue_cnt):
+
+def write_issues(r_json, repo_name, repo_id, issues):
     """
     Writes issues to an Excel file
     :param git_response: the response for the github call
@@ -330,6 +344,7 @@ def write_issues(r_json, repo_name, repo_id, issues, issue_cnt):
     :param issue_cnt: counter for the starting issue
     :return issue_cnt: the count of issues processed
     """
+    issue_cnt = 0
 
     filename = f"{repo_name.split('/')[1]}.xlsx"
     fileoutput = Workbook()
@@ -338,13 +353,7 @@ def write_issues(r_json, repo_name, repo_id, issues, issue_cnt):
     defaultsheet = fileoutput['Sheet']
     fileoutput.remove(defaultsheet)
 
-    headers = ['Repository', 'Issue Number', 'Issue Title', 'User Story', 'Pipeline',
-               'Issue Author', 'Created At', 'Milestone', 'Milestone End Date',
-               'Assigned To', 'Estimate Value', 'Priority', 'Labels', 'Comments',
-               'Epics', 'Status', 'Blocked', 'Blocked By']
-    for i, header in enumerate(headers):
-        worksheet.cell(column=(i+1), row=1, value=header)
-        worksheet.cell(column=(i+1), row=1).font = Font(bold=True)
+    write_headers(worksheet)
 
     for issue in r_json:
         issue_cnt += 1
@@ -455,7 +464,7 @@ def get_issues(repo_data, issues_dict, state='all', since=None):
     repo_id = repo_data[1]
     issues = get_github_issues(repo_name, repo_id, state=state, since=since)
 
-    write_issues(issues, repo_name, repo_id, issues_dict, 0)
+    write_issues(issues, repo_name, repo_id, issues_dict)
 
 def main():
     """The real main function..."""
