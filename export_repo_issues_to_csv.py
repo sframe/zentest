@@ -27,7 +27,6 @@ GITHUB_HEADERS = {
 }
 
 ZENHUB_HEADERS = {'X-Authentication-Token': ZENHUB_TOKEN}
-HTMLFLAG = 0
 
 class AttrDict(dict):
     """A dictionary where you can use dot notation for accessing elements."""
@@ -334,7 +333,7 @@ def write_headers(worksheet):
         worksheet.cell(column=(i+1), row=1).font = Font(bold=True)
 
 
-def write_issues(r_json, repo_name, repo_id, issues):
+def write_issues(r_json, args, issues):
     """
     Writes issues to an Excel file
     :param git_response: the response for the github call
@@ -346,7 +345,15 @@ def write_issues(r_json, repo_name, repo_id, issues):
     """
     issue_cnt = 0
 
-    filename = f"{repo_name.split('/')[1]}.xlsx"
+    repo_list = args.repo_list
+    htmlflag = args.html
+    since = args.since
+    repo_name = args.repo_list[0]
+    repo_id = args.repo_list[1]
+    if args.file_name:
+        filename = args.file_name
+    else:
+        filename = f"{repo_name.split('/')[1]}.xlsx"
     fileoutput = Workbook()
 
     worksheet = fileoutput.create_sheet(title="Data")
@@ -358,7 +365,7 @@ def write_issues(r_json, repo_name, repo_id, issues):
     for issue in r_json:
         issue_cnt += 1
         s_labels, s_priority = get_labels_string(issue)
-        if HTMLFLAG == 1:
+        if htmlflag == 1:
             userstory = markdown.markdown(issue['body'])
         else:
             userstory = issue['body']
@@ -404,7 +411,7 @@ def get_nextpage_response(pages):
         raise Exception(issue_response.status_code)
     return issue_response.json()
 
-def get_github_issues(repo_name, repo_id, state='all', since=None):
+def get_github_issues(args, state='all'):
     """
     Get github issues
     :param repo_name: the name of the GitHub repository
@@ -412,6 +419,12 @@ def get_github_issues(repo_name, repo_id, state='all', since=None):
     :param since: the date to search after in the formate of %Y-%m-%d
     :returns issues: the dictionary of issues
     """
+
+    repo_list = args.repo_list
+    since = args.since
+    repo_name = args.repo_list[0]
+    repo_id = args.repo_list[1]
+
     issues_for_repo_url = f'https://api.github.com/repos/{repo_name}/issues?state={state}'
     issues = []
     if since:
@@ -454,41 +467,29 @@ def get_github_issues(repo_name, repo_id, state='all', since=None):
         issues[issues.index(issue)] = issue
     return issues
 
-def get_issues(repo_data, issues_dict, state='all', since=None):
+def get_issues(args, state='all'):
     """
     Get an issue attributes
     :param repo_data: the environment variable with the repo_name
     and the ZenHub id for the repository
     """
-    repo_name = repo_data[0]
-    repo_id = repo_data[1]
-    issues = get_github_issues(repo_name, repo_id, state=state, since=since)
 
-    write_issues(issues, repo_name, repo_id, issues_dict)
+    #get the epic dictionary
+    epic_dict = create_epic_dict(args.repo_list[1])
+    issues = get_github_issues(args, state=state)
+    write_issues(issues, args, epic_dict)
 
 def main():
     """The real main function..."""
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--file_name', help='file_name=filename.txt')
+    parser.add_argument('--file_name', default=None, help='file_name=filename.txt')
     parser.add_argument('--repo_list', nargs='+', help='repo_list owner/repo zenhub-id')
     parser.add_argument('--html', default=0, type=int, help='html=1')
     parser.add_argument('--since', default=None, help='since date in the format of 2018-01-01')
     args = parser.parse_args()
 
-    repo_list = args.repo_list
-
-    #txtout = open('data.json', 'w')
-    issues = 0
-    #filename = args.file_name
-    #htmlflag = args.html
-    since = args.since
-
-    #get the epic dictionary
-    issues = create_epic_dict(repo_list[1])
-
-    #for repo_data in REPO_LIST:
-    get_issues(repo_data=repo_list, issues_dict=issues, state='all', since=since)
+    get_issues(args, state='all')
 
 if __name__ == '__main__':
     main()
