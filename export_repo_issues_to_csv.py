@@ -486,9 +486,10 @@ def main():
     parser.add_argument('--repo_list', nargs='+', help='repo_list owner/repo zenhub-id')
     parser.add_argument('--html', default=0, type=int, help='html=1')
     parser.add_argument('--since', default=None, help='since date in the format of 2018-01-01')
+    parser.add_argument('--state', default='all', help='the state as defined by github')
     args = parser.parse_args()
 
-    get_issues(args, state='all')
+    get_issues(args, state=args.state)
 
 if __name__ == '__main__':
     main()
