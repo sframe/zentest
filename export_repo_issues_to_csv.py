@@ -321,7 +321,7 @@ def write_row(issue, row):
                  row['s_assignee_list'][:-1], row['estimate_value'],
                  row['s_priority'], row['s_labels'],
                  row['comments'], row['s_epics'][:-1], status,
-                 issue['blocked'], issue['blocked_by']]
+                 issue['blocked'], str(issue['blocked_by']).strip('[]')]
     for i in range(len(rowvalues)):
         WS.cell(column=(i+1), row=1+row['issue_cnt'], value=rowvalues[i])
 
