@@ -377,9 +377,9 @@ def get_pages(issue_response):
     :returns pages_dict: a dictionary object for the pages link
     """
     pages_dict = dict(
-        [(rel[6:-1], url[url.index('<') + 1:-1]) for url, rel in
-         [link.split(';') for link in
-          issue_response.headers['link'].split(',')]])
+        (rel[6:-1], url[url.index('<') + 1:-1]) for url, rel in
+        [link.split(';') for link in
+         issue_response.headers['link'].split(',')])
     return pages_dict
 
 
