@@ -467,7 +467,7 @@ def get_github_issues(args, state='all'):
         issues[issues.index(issue)] = issue
     return issues
 
-def get_issues(args, state='all'):
+def get_issues(args):
     """
     Get an issue attributes
     :param args: the arguments passed in
@@ -475,7 +475,7 @@ def get_issues(args, state='all'):
 
     #get the epic dictionary
     epic_dict = create_epic_dict(args.repo_list[1])
-    issues = get_github_issues(args, state=state)
+    issues = get_github_issues(args, state=args.state)
     write_issues(issues, args, epic_dict)
 
 def main():
@@ -489,7 +489,7 @@ def main():
     parser.add_argument('--state', default='all', help='the state as defined by github')
     args = parser.parse_args()
 
-    get_issues(args, state=args.state)
+    get_issues(args)
 
 if __name__ == '__main__':
     main()
