@@ -292,7 +292,7 @@ def calculate_status(issue):
 
     return status
 
-def write_row(issue, row, workbook):
+def write_row(issue, row, worksheet):
     """
     Writes rows to an Excel file
     """
@@ -314,8 +314,10 @@ def write_row(issue, row, workbook):
                  row['s_priority'], row['s_labels'],
                  row['comments'], row['s_epics'][:-1], status,
                  issue['blocked'], str(issue['blocked_by']).strip('[]')]
-    for i in range(len(rowvalues)):
-        workbook.cell(column=(i+1), row=1+row['issue_cnt'], value=rowvalues[i])
+    for i, value in enumerate(rowvalues):
+        worksheet.cell(column=(i+1),
+                       row=1+row['issue_cnt'],
+                       value=value)
 
 
 def write_issues(r_json, repo_name, repo_id, issues, issue_cnt):
@@ -340,9 +342,9 @@ def write_issues(r_json, repo_name, repo_id, issues, issue_cnt):
                'Issue Author', 'Created At', 'Milestone', 'Milestone End Date',
                'Assigned To', 'Estimate Value', 'Priority', 'Labels', 'Comments',
                'Epics', 'Status', 'Blocked', 'Blocked By']
-    for header in range(len(headers)):
-        worksheet.cell(column=(header+1), row=1, value=headers[header])
-        worksheet.cell(column=(header+1), row=1).font = Font(bold=True)
+    for i, header in enumerate(headers):
+        worksheet.cell(column=(i+1), row=1, value=header)
+        worksheet.cell(column=(i+1), row=1).font = Font(bold=True)
 
     for issue in r_json:
         issue_cnt += 1
