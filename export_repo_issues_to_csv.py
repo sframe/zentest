@@ -46,34 +46,35 @@ def get_epics(repo_id):
     """
     Get the epic(s) on an issue and concatenates them into
     one field.
-    :param repo_id: the id of the github repo
-    :out r_json: the response from the call
+    :param repo_id: the id of the zenhub repo
+    :out epics: the response from the call for epics
     """
     zen_url = f'https://api.zenhub.io/p1/repositories/{repo_id}/epics/'
     zen_response = requests.get(zen_url, headers=ZENHUB_HEADERS)
     if not zen_response.status_code == 200:
         raise Exception(zen_response.json())
-    r_json = zen_response.json()
-    return r_json
+    epics = zen_response.json()
+    return epics
 
 def get_dependencies(repo_id):
     """
     Get the dependencies on all issues
-    :param repo_id: the id of the github repo
-    :out r_json: the response from the call
+    :param repo_id: the id of the zenhub repo
+    :out dependencies: the response from the call for dependencies
     """
     zen_url = f'https://api.zenhub.io/p1/repositories/{repo_id}/dependencies/'
     zen_response = requests.get(zen_url, headers=ZENHUB_HEADERS)
     if not zen_response.status_code == 200:
         raise Exception(zen_response.json())
-    r_json = zen_response.json()
-    return r_json
+    dependencies = zen_response.json()
+    return dependencies
 
 def create_blocked_items(repo_id, issues):
     """
     Create a dictionary for looking up dependenceies by issue number
     :param repo_id: the repo_id of the zenhub repo
-    :out issue_epics: a dictionary of the issue dependencies
+    :param issues: the dictionary of issues
+    :out blocked_items: a dictionary of blocked issues
     """
     response = get_dependencies(repo_id)
     blocked_items = dict()
@@ -112,19 +113,20 @@ def get_epic_issues(repo_id, epic_issue_id):
     """
     Get the epic(s) on an issue and concatenates them into
     one field.
-    :param repo_name: the name of the github repo
-    :out epic_sum: a concantenated field with all epics
+    :param repo_id: the id of the zenhub repo
+    :param epic_issue_id: the parent epic issue id
+    :out epic_issues: a concantenated field with all epics
     """
     zen_url = 'https://api.zenhub.io/p1/repositories/'
     epic_url = f'{zen_url}{repo_id}/epics/{epic_issue_id}'
     zen_response = get_zenresponse(epic_url)
-    r_json = zen_response.json()
-    return r_json
+    epic_issues = zen_response.json()
+    return epic_issues
 
 def create_epic_dict(repo_id):
     """
     Create a dictionary for looking up epics by issue number
-    :param repo_id: the repo_id of the zenhub repo
+    :param repo_id: the id of the zenhub repo
     :out issue_epics: a dictionary of issues with the epics it is under
     """
     response = get_epics(repo_id)
@@ -164,9 +166,9 @@ def get_comments(repo_name, issue_id):
     """
     comments_for_issue_url = f'https://api.github.com/repos/{repo_name}/issues/{issue_id}/comments'
     git_response = requests.get(comments_for_issue_url, headers=GITHUB_HEADERS)
-    r_json = git_response.json()
+    comments = git_response.json()
     comment_sum = ''
-    for comment in r_json:
+    for comment in comments:
         c_login = comment.get("user", dict()).get('login', "")
         comment_sum = '@'+c_login+' - '+comment_sum + str(comment['body'])
     return comment_sum
@@ -185,8 +187,8 @@ def throttle_zenhub(issue_cnt):
 def get_assignees(issue):
     """
     Convert the assignees for an issue to a comma-separated string
-    :param issue: the current issue
-    :returns s_assignees: the concatenated list of assignees
+    :param issue: the issue to find the assignees
+    :returns s_assignee_list: the concatenated list of assignees
     """
     s_assignee_list = ''
     for assignee in issue['assignees'] if issue['assignees'] else []:
@@ -227,9 +229,10 @@ def get_zenresponse(issue_url):
 def get_zenhubresponse(repo_id, issue_number):
     """
     Gets the ZenHub data for the issue
-    :param repo_id: the id for the repo used to reference the ZenHub fields
+    :param repo_id: the id for the ZenHub repository
     :param issue_number: the specific issue number
-    :returns zen_r: a json object of the issue
+    :returns s_pipeline: the pipeline for the issue
+    :returns estimate_value: the estimate for the issue
     """
     zen_url = f'https://api.zenhub.io/p1/repositories/{repo_id}/issues/'
     issue_url = f'{zen_url}{issue_number}'
@@ -263,6 +266,8 @@ def get_labels_string(issue):
 def calculate_status(issue):
     """
     Calculates the traffic light status on an issue
+    :param issue: the issue to review
+    :returtns status: the decoded status for the issue
     """
     status = 'Green'
 
@@ -294,6 +299,9 @@ def calculate_status(issue):
 def write_row(issue, row, worksheet):
     """
     Writes rows to an Excel file
+    :param issue: the issue to write
+    :param row: the row of data to write
+    :param worksheet: the worksheet to store the rows
     """
     issue_number = str(issue['number'])
     row['s_pipeline'], row['estimate_value'] = get_zenhubresponse(row['repo_id'], issue_number)
@@ -322,7 +330,6 @@ def write_headers(worksheet):
     """
     Writes headers to an Excel file
     :param worksheet: the worksheet where the headers are written
-    :return issue_cnt: the count of issues processed
     """
     headers = ['Repository', 'Issue Number', 'Issue Title', 'User Story', 'Pipeline',
                'Issue Author', 'Created At', 'Milestone', 'Milestone End Date',
@@ -333,25 +340,20 @@ def write_headers(worksheet):
         worksheet.cell(column=(i+1), row=1).font = Font(bold=True)
 
 
-def write_issues(r_json, args, issues):
+def write_issues(issues, args, epics):
     """
     Writes issues to an Excel file
-    :param git_response: the response for the github call
-    :param repo_name: the name of the github repo
-    :param repo_id: the id for the repo used to reference the ZenHub fields
-    :param issues: dictionary of the mapping for issues to epics
-    :param issue_cnt: counter for the starting issue
+    :param issues: the dictionary of issues
+    :param args: the arguments passed in
+    :param epics: dictionary of the mapping for issues to epics
     :return issue_cnt: the count of issues processed
     """
     issue_cnt = 0
 
-    repo_list = args.repo_list
-    htmlflag = args.html
-    since = args.since
     repo_name = args.repo_list[0]
     repo_id = args.repo_list[1]
-    if args.file_name:
-        filename = args.file_name
+    if args.filename:
+        filename = args.filename
     else:
         filename = f"{repo_name.split('/')[1]}.xlsx"
     fileoutput = Workbook()
@@ -362,10 +364,10 @@ def write_issues(r_json, args, issues):
 
     write_headers(worksheet)
 
-    for issue in r_json:
+    for issue in issues:
         issue_cnt += 1
         s_labels, s_priority = get_labels_string(issue)
-        if htmlflag == 1:
+        if args.html == 1:
             userstory = markdown.markdown(issue['body'])
         else:
             userstory = issue['body']
@@ -375,7 +377,7 @@ def write_issues(r_json, args, issues):
                    s_assignee_list=get_assignees(issue),
                    s_priority=s_priority,
                    s_labels=s_labels,
-                   s_epics=get_epics_string(issues, issue),
+                   s_epics=get_epics_string(epics, issue),
                    s_state=issue['state'],
                    issue_cnt=issue_cnt,)
         write_row(issue, row, worksheet)
@@ -414,13 +416,11 @@ def get_nextpage_response(pages):
 def get_github_issues(args, state='all'):
     """
     Get github issues
-    :param repo_name: the name of the GitHub repository
+    :param args: the arguments passed in
     :param state: the state of the issue, all by default
-    :param since: the date to search after in the formate of %Y-%m-%d
     :returns issues: the dictionary of issues
     """
 
-    repo_list = args.repo_list
     since = args.since
     repo_name = args.repo_list[0]
     repo_id = args.repo_list[1]
@@ -470,8 +470,7 @@ def get_github_issues(args, state='all'):
 def get_issues(args, state='all'):
     """
     Get an issue attributes
-    :param repo_data: the environment variable with the repo_name
-    and the ZenHub id for the repository
+    :param args: the arguments passed in
     """
 
     #get the epic dictionary
@@ -483,7 +482,7 @@ def main():
     """The real main function..."""
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--file_name', default=None, help='file_name=filename.txt')
+    parser.add_argument('--filename', default=None, help='filename=filename.txt')
     parser.add_argument('--repo_list', nargs='+', help='repo_list owner/repo zenhub-id')
     parser.add_argument('--html', default=0, type=int, help='html=1')
     parser.add_argument('--since', default=None, help='since date in the format of 2018-01-01')
