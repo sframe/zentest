@@ -27,15 +27,7 @@ GITHUB_HEADERS = {
 }
 
 ZENHUB_HEADERS = {'X-Authentication-Token': ZENHUB_TOKEN}
-#GITHUB = Github(GITHUB_TOKEN)
-#REPO = GITHUB.get_repo('candidpartners/att-datalake')
 HTMLFLAG = 0
-
-FILEOUTPUT = Workbook()
-
-WS = FILEOUTPUT.create_sheet(title="Data")
-SH = FILEOUTPUT['Sheet']
-FILEOUTPUT.remove(SH)
 
 class AttrDict(dict):
     """A dictionary where you can use dot notation for accessing elements."""
@@ -300,7 +292,7 @@ def calculate_status(issue):
 
     return status
 
-def write_row(issue, row):
+def write_row(issue, row, workbook):
     """
     Writes rows to an Excel file
     """
@@ -323,7 +315,7 @@ def write_row(issue, row):
                  row['comments'], row['s_epics'][:-1], status,
                  issue['blocked'], str(issue['blocked_by']).strip('[]')]
     for i in range(len(rowvalues)):
-        WS.cell(column=(i+1), row=1+row['issue_cnt'], value=rowvalues[i])
+        workbook.cell(column=(i+1), row=1+row['issue_cnt'], value=rowvalues[i])
 
 
 def write_issues(r_json, repo_name, repo_id, issues, issue_cnt):
@@ -336,6 +328,22 @@ def write_issues(r_json, repo_name, repo_id, issues, issue_cnt):
     :param issue_cnt: counter for the starting issue
     :return issue_cnt: the count of issues processed
     """
+
+    filename = f"{repo_name.split('/')[1]}.xlsx"
+    fileoutput = Workbook()
+
+    worksheet = fileoutput.create_sheet(title="Data")
+    defaultsheet = fileoutput['Sheet']
+    fileoutput.remove(defaultsheet)
+
+    headers = ['Repository', 'Issue Number', 'Issue Title', 'User Story', 'Pipeline',
+               'Issue Author', 'Created At', 'Milestone', 'Milestone End Date',
+               'Assigned To', 'Estimate Value', 'Priority', 'Labels', 'Comments',
+               'Epics', 'Status', 'Blocked', 'Blocked By']
+    for header in range(len(headers)):
+        worksheet.cell(column=(header+1), row=1, value=headers[header])
+        worksheet.cell(column=(header+1), row=1).font = Font(bold=True)
+
     for issue in r_json:
         issue_cnt += 1
         s_labels, s_priority = get_labels_string(issue)
@@ -352,9 +360,11 @@ def write_issues(r_json, repo_name, repo_id, issues, issue_cnt):
                    s_epics=get_epics_string(issues, issue),
                    s_state=issue['state'],
                    issue_cnt=issue_cnt,)
-        write_row(issue, row)
+        write_row(issue, row, worksheet)
         print(f'issue count: {issue_cnt}')
         throttle_zenhub(issue_cnt)
+
+    fileoutput.save(filename=filename)
     return issue_cnt
 
 
@@ -442,7 +452,7 @@ def get_issues(repo_data, issues_dict, state='all', since=None):
     repo_name = repo_data[0]
     repo_id = repo_data[1]
     issues = get_github_issues(repo_name, repo_id, state=state, since=since)
-    #blocked = create_blocked_items(repo_id, issues)
+
     write_issues(issues, repo_name, repo_id, issues_dict, 0)
 
 def main():
@@ -459,24 +469,15 @@ def main():
 
     #txtout = open('data.json', 'w')
     issues = 0
-    filename = args.file_name
-    htmlflag = args.html
+    #filename = args.file_name
+    #htmlflag = args.html
     since = args.since
-
-    headers = ['Repository', 'Issue Number', 'Issue Title', 'User Story', 'Pipeline',
-               'Issue Author', 'Created At', 'Milestone', 'Milestone End Date',
-               'Assigned To', 'Estimate Value', 'Priority', 'Labels', 'Comments',
-               'Epics', 'Status', 'Blocked', 'Blocked By']
-    for h in range(len(headers)):
-        WS.cell(column=(h+1), row=1, value=headers[h])
-        WS.cell(column=(h+1), row=1).font = Font(bold=True)
 
     #get the epic dictionary
     issues = create_epic_dict(repo_list[1])
 
     #for repo_data in REPO_LIST:
     get_issues(repo_data=repo_list, issues_dict=issues, state='all', since=since)
-    FILEOUTPUT.save(filename=filename)
 
 if __name__ == '__main__':
     main()
