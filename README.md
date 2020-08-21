@@ -32,7 +32,7 @@ export GITHUB_TOKEN=XXXX
 
 The command line parameters are as follows:
 
-`--file_name` The name of the Excel file to create
+`--filename` The name of the Excel file to create
 
 `--repo_list github_owner/github_repo zenhub-id`
 
@@ -40,7 +40,9 @@ You can find you zenhub-id by going to ZenHub id by looking in the url when you 
 
 `--html` This is either 0 or 1, most of the time you will want 0 which leaves the format in Markdown
 
+`--state` The state of the issues to export, the default is all
+
 Example:
 ```
-export_repo_issues_to_csv.py --file_name=test.xlsx --repo_list migibbs/zentest 111111111 --html=0
+export_repo_issues_to_csv.py --filename=test.xlsx --repo_list migibbs/zentest 111111111 --html=0 --state=closed
 ```
