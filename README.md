@@ -21,6 +21,7 @@ For Windows, use the following format:
 ```
 setx ZENHUB_TOKEN XXXXXXX
 setx GITHUB_TOKEN XXXX
+setx REPO_ID XXXX
 ```
 
 For Bash, use the following format:
@@ -28,13 +29,14 @@ For Bash, use the following format:
 ```
 export ZENHUB_TOKEN=XXXXXXX
 export GITHUB_TOKEN=XXXX
+export REPO_ID=XXXX
 ```
 
 The command line parameters are as follows:
 
 `--filename` The name of the Excel file to create
 
-`--repo_list github_owner/github_repo zenhub-id`
+`--repo github_owner/github_repo`
 
 You can find you zenhub-id by going to ZenHub id by looking in the url when you go to Zenhub.com for the repository, repos=<zenhub-id>
 
@@ -44,5 +46,5 @@ You can find you zenhub-id by going to ZenHub id by looking in the url when you 
 
 Example:
 ```
-export_repo_issues_to_csv.py --filename=test.xlsx --repo_list migibbs/zentest 111111111 --html=0 --state=closed
+export_repo_issues_to_csv.py --filename=test.xlsx --repo migibbs/zentest --html=0 --state=closed
 ```
