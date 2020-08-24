@@ -274,22 +274,26 @@ def calculate_status(issue):
         milestone = issue['milestone'].get('due_on', '2200-01-01T23:59:59Z')
     else:
         milestone = '2200-01-01T23:59:59Z'
+    #if the issue is not due within this sprint or earlier, ignore dependencies
+    if datetime.datetime.strptime(milestone, '%Y-%m-%dT%H:%M:%SZ') \
+       < datetime.datetime.now() + datetime.timedelta(days=14):
 
-    red_rules = [
-        datetime.datetime.strptime(milestone, '%Y-%m-%dT%H:%M:%SZ')
-        < datetime.datetime.now(),
-        issue['blocked'],
-    ]
-
-    for label in issue['labels'] if issue['labels'] else []:
-        yellow_rules = [
-            'yellow' in label['name'],
+        red_rules = [
+            datetime.datetime.strptime(milestone, '%Y-%m-%dT%H:%M:%SZ')
+            < datetime.datetime.now(),
+            issue['blocked'],
+            #Issue is not due yet
         ]
-        if any(yellow_rules):
-            status = 'Yellow'
 
-    if any(red_rules):
-        status = 'Red'
+        for label in issue['labels'] if issue['labels'] else []:
+            yellow_rules = [
+                'yellow' in label['name'],
+            ]
+            if any(yellow_rules):
+                status = 'Yellow'
+
+        if any(red_rules):
+            status = 'Red'
 
     return status
 
