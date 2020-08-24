@@ -19,6 +19,7 @@ from openpyxl.styles import Font
 
 GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
 ZENHUB_TOKEN = os.environ['ZENHUB_TOKEN']
+REPO_ID = os.environ['REPO_ID']
 ZENHUB_API_RATE_LIMIT = 51
 
 GITHUB_HEADERS = {
@@ -27,6 +28,8 @@ GITHUB_HEADERS = {
 }
 
 ZENHUB_HEADERS = {'X-Authentication-Token': ZENHUB_TOKEN}
+
+ZEN_URL = f'https://api.zenhub.io/p1/repositories/{REPO_ID}/'
 
 class AttrDict(dict):
     """A dictionary where you can use dot notation for accessing elements."""
@@ -42,41 +45,39 @@ class AttrDict(dict):
         del self[key]
 
 
-def get_epics(repo_id):
+def get_epics():
     """
     Get the epic(s) on an issue and concatenates them into
     one field.
-    :param repo_id: the id of the zenhub repo
     :out epics: the response from the call for epics
     """
-    zen_url = f'https://api.zenhub.io/p1/repositories/{repo_id}/epics/'
+    zen_url = f'{ZEN_URL}epics/'
     zen_response = requests.get(zen_url, headers=ZENHUB_HEADERS)
     if not zen_response.status_code == 200:
         raise Exception(zen_response.json())
     epics = zen_response.json()
     return epics
 
-def get_dependencies(repo_id):
+def get_dependencies():
     """
     Get the dependencies on all issues
-    :param repo_id: the id of the zenhub repo
     :out dependencies: the response from the call for dependencies
     """
-    zen_url = f'https://api.zenhub.io/p1/repositories/{repo_id}/dependencies/'
+    zen_url = f'{ZEN_URL}dependencies/'
+    print(zen_url)
     zen_response = requests.get(zen_url, headers=ZENHUB_HEADERS)
     if not zen_response.status_code == 200:
         raise Exception(zen_response.json())
     dependencies = zen_response.json()
     return dependencies
 
-def create_blocked_items(repo_id, issues):
+def create_blocked_items(issues):
     """
     Create a dictionary for looking up dependenceies by issue number
-    :param repo_id: the repo_id of the zenhub repo
     :param issues: the dictionary of issues
     :out blocked_items: a dictionary of blocked issues
     """
-    response = get_dependencies(repo_id)
+    response = get_dependencies()
     blocked_items = dict()
     closed = dict()
 
@@ -109,32 +110,29 @@ def create_blocked_items(repo_id, issues):
             )
     return blocked_items
 
-def get_epic_issues(repo_id, epic_issue_id):
+def get_epic_issues(epic_issue_id):
     """
     Get the epic(s) on an issue and concatenates them into
     one field.
-    :param repo_id: the id of the zenhub repo
     :param epic_issue_id: the parent epic issue id
     :out epic_issues: a concantenated field with all epics
     """
-    zen_url = 'https://api.zenhub.io/p1/repositories/'
-    epic_url = f'{zen_url}{repo_id}/epics/{epic_issue_id}'
+    epic_url = f'{ZEN_URL}epics/{epic_issue_id}'
     zen_response = get_zenresponse(epic_url)
     epic_issues = zen_response.json()
     return epic_issues
 
-def create_epic_dict(repo_id):
+def create_epic_dict():
     """
     Create a dictionary for looking up epics by issue number
-    :param repo_id: the id of the zenhub repo
     :out issue_epics: a dictionary of issues with the epics it is under
     """
-    response = get_epics(repo_id)
+    response = get_epics()
     issue_epics = dict()
 
     for epic_issue in response['epic_issues'] if response['epic_issues'] else []:
         epic_issue = epic_issue['issue_number']
-        epic_issues = get_epic_issues(repo_id, epic_issue)
+        epic_issues = get_epic_issues(epic_issue)
         for issue in epic_issues['issues'] if epic_issues['issues'] else []:
             issue_number = issue['issue_number']
             if issue_number in issue_epics:
@@ -226,15 +224,14 @@ def get_zenresponse(issue_url):
     return zen_response
 
 
-def get_zenhubresponse(repo_id, issue_number):
+def get_zenhubresponse(issue_number):
     """
     Gets the ZenHub data for the issue
-    :param repo_id: the id for the ZenHub repository
     :param issue_number: the specific issue number
     :returns s_pipeline: the pipeline for the issue
     :returns estimate_value: the estimate for the issue
     """
-    zen_url = f'https://api.zenhub.io/p1/repositories/{repo_id}/issues/'
+    zen_url = f'{ZEN_URL}issues/'
     issue_url = f'{zen_url}{issue_number}'
     zen_response = get_zenresponse(issue_url)
     zen_r = zen_response.json()
@@ -304,7 +301,7 @@ def write_row(issue, row, worksheet):
     :param worksheet: the worksheet to store the rows
     """
     issue_number = str(issue['number'])
-    row['s_pipeline'], row['estimate_value'] = get_zenhubresponse(row['repo_id'], issue_number)
+    row['s_pipeline'], row['estimate_value'] = get_zenhubresponse(issue_number)
     status = calculate_status(issue)
     if row['s_state'] == 'closed':
         row['s_pipeline'] = 'Closed'
@@ -350,8 +347,7 @@ def write_issues(issues, args, epics):
     """
     issue_cnt = 0
 
-    repo_name = args.repo_list[0]
-    repo_id = args.repo_list[1]
+    repo_name = args.repo[0]
     if args.filename:
         filename = args.filename
     else:
@@ -372,7 +368,7 @@ def write_issues(issues, args, epics):
         else:
             userstory = issue['body']
         row = dict(repo_name=repo_name,
-                   repo_id=repo_id,
+                   repo_id=REPO_ID,
                    userstory=userstory,
                    s_assignee_list=get_assignees(issue),
                    s_priority=s_priority,
@@ -422,8 +418,7 @@ def get_github_issues(args, state='all'):
     """
 
     since = args.since
-    repo_name = args.repo_list[0]
-    repo_id = args.repo_list[1]
+    repo_name = args.repo[0]
 
     issues_for_repo_url = f'https://api.github.com/repos/{repo_name}/issues?state={state}'
     issues = []
@@ -446,7 +441,7 @@ def get_github_issues(args, state='all'):
             response = issue_response.json()
             issues += response
             if pages['next'] == pages['last']:
-                blocked = create_blocked_items(repo_id, issues)
+                blocked = create_blocked_items(issues)
                 for issue in issues:
                     if issue['number'] in blocked:
                         issue.update({"blocked": "blocked",
@@ -456,7 +451,7 @@ def get_github_issues(args, state='all'):
                                       "blocked_by": "",})
                     issues[issues.index(issue)] = issue
                 return issues
-    blocked = create_blocked_items(repo_id, issues)
+    blocked = create_blocked_items(issues)
     for issue in issues:
         if issue['number'] in blocked:
             issue.update({"blocked": "blocked",
@@ -474,7 +469,7 @@ def get_issues(args):
     """
 
     #get the epic dictionary
-    epic_dict = create_epic_dict(args.repo_list[1])
+    epic_dict = create_epic_dict()
     issues = get_github_issues(args, state=args.state)
     write_issues(issues, args, epic_dict)
 
@@ -483,7 +478,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--filename', default=None, help='filename=filename.txt')
-    parser.add_argument('--repo_list', nargs='+', help='repo_list owner/repo zenhub-id')
+    parser.add_argument('--repo', nargs='+', help='repo owner/repo')
     parser.add_argument('--html', default=0, type=int, help='html=1')
     parser.add_argument('--since', default=None, help='since date in the format of 2018-01-01')
     parser.add_argument('--state', default='all', help='the state as defined by github')
