@@ -80,21 +80,39 @@ def create_blocked_items(issues):
     response = get_dependencies()
     blocked_items = dict()
     closed = dict()
+    fix_blockers = dict()
 
-    #find all closed issues
+    for issue in issues:
+        if issue['title'].startswith('Fix')and issue['state'] != 'closed':
+            #print(f"Do not skip {issue['number']} dependency...")
+            fix_blockers[issue['number']] = AttrDict(
+                issue_number=issue['number']
+            )
+    #find all issues to ignore
     for issue in issues:
         if issue['state'] == 'closed':
+            milestone = '2200-01-01T23:59:59Z'
+        elif issue['milestone']:
+            milestone = issue['milestone'].get('due_on', '2200-01-01T23:59:59Z')
+        else:
+            milestone = '2200-01-01T23:59:59Z'
+        if issue['number'] in fix_blockers:
+            #print(f"Do not add {issue['number']} to closed...")
+            continue
+        #if the issue is not due within this sprint or earlier, ignore dependencies
+        if datetime.datetime.strptime(milestone, '%Y-%m-%dT%H:%M:%SZ') \
+           < datetime.datetime.now():# + datetime.timedelta(days=14):
             closed[issue['number']] = AttrDict(
                 issue_number=issue['number']
             )
 
     for dependency in response['dependencies'] if response['dependencies'] else []:
         issue_number = dependency['blocked']['issue_number']
+        blocking = dependency['blocking']['issue_number']
         #if the issue is closed or the dependency is closed, ignore it
         if issue_number in closed or dependency['blocking']['issue_number'] in closed:
-            print(f'Skipping {issue_number} dependency...')
             continue
-        if issue_number in blocked_items:
+        if issue_number in blocked_items and blocking in fix_blockers:
             temp = dict()
             depends = blocked_items[issue_number].blocked_by
             depends.append(dependency['blocking']['issue_number'])
@@ -103,7 +121,7 @@ def create_blocked_items(issues):
                 blocked_by=depends
             )
             blocked_items.update(temp)
-        else:
+        elif blocking in fix_blockers:
             blocked_items[issue_number] = AttrDict(
                 issue_number=dependency['blocked']['issue_number'],
                 blocked_by=[dependency['blocking']['issue_number']]
@@ -268,23 +286,22 @@ def calculate_status(issue):
     """
     status = 'Green'
 
+    now = datetime.datetime.now().replace(microsecond=0)
+
     if issue['state'] == 'closed':
         milestone = '2200-01-01T23:59:59Z'
     elif issue['milestone']:
-        milestone = issue['milestone'].get('due_on', '2200-01-01T23:59:59Z')
+        milestone = issue['milestone'].get('due_on', now.strftime('%Y-%m-%dT%H:%M:%SZ'))
     else:
-        milestone = '2200-01-01T23:59:59Z'
+        milestone = now.strftime('%Y-%m-%dT%H:%M:%SZ')
     #if the issue is not due within this sprint or earlier, ignore dependencies
     if datetime.datetime.strptime(milestone, '%Y-%m-%dT%H:%M:%SZ') \
-       < datetime.datetime.now() + datetime.timedelta(days=14):
-
+       < now + datetime.timedelta(days=14):
         red_rules = [
             datetime.datetime.strptime(milestone, '%Y-%m-%dT%H:%M:%SZ')
-            < datetime.datetime.now(),
+            < now,
             issue['blocked'],
-            #Issue is not due yet
         ]
-
         for label in issue['labels'] if issue['labels'] else []:
             yellow_rules = [
                 'yellow' in label['name'],
@@ -423,6 +440,7 @@ def get_github_issues(args, state='all'):
 
     since = args.since
     repo_name = args.repo[0]
+    print(repo_name)
 
     issues_for_repo_url = f'https://api.github.com/repos/{repo_name}/issues?state={state}'
     issues = []
