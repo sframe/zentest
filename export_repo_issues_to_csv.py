@@ -13,6 +13,7 @@ import time
 import datetime
 import requests
 import markdown
+import boto3
 from retrying import retry
 from openpyxl import Workbook
 from openpyxl.styles import Font
@@ -90,8 +91,6 @@ def create_blocked_items(issues):
             )
     #find all issues to ignore
     for issue in issues:
-        if issue['number'] in fix_blockers:
-            continue
         if issue['state'] == 'closed':
             closed[issue['number']] = AttrDict(
                 issue_number=issue['number']
@@ -269,10 +268,11 @@ def get_labels_string(issue):
             s_priority = label['name']
     return s_labels, s_priority
 
-def calculate_status(issue):
+def calculate_status(issue, pipeline):
     """
     Calculates the traffic light status on an issue
     :param issue: the issue to review
+    :param pipeline: the pipeline for the issue
     :returtns status: the decoded status for the issue
     """
     status = 'Green'
@@ -282,7 +282,7 @@ def calculate_status(issue):
     if issue['state'] == 'closed':
         status = 'Deployed'
         return status
-    elif issue['milestone']:
+    if issue['milestone']:
         milestone = issue['milestone'].get('due_on', now.strftime('%Y-%m-%dT%H:%M:%SZ'))
     else:
         milestone = now.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -292,7 +292,7 @@ def calculate_status(issue):
         red_rules = [
             datetime.datetime.strptime(milestone, '%Y-%m-%dT%H:%M:%SZ')
             < now,
-            issue['blocked'],
+            issue['blocked'] and pipeline == 'External',
         ]
         for label in issue['labels'] if issue['labels'] else []:
             yellow_rules = [
@@ -315,7 +315,7 @@ def write_row(issue, row, worksheet):
     """
     issue_number = str(issue['number'])
     row['s_pipeline'], row['estimate_value'] = get_zenhubresponse(issue_number)
-    status = calculate_status(issue)
+    status = calculate_status(issue, row['s_pipeline'])
     if row['s_state'] == 'closed':
         row['s_pipeline'] = 'Closed'
     row['comments'] = ''
@@ -361,10 +361,7 @@ def write_issues(issues, args, epics):
     issue_cnt = 0
 
     repo_name = args.repo[0]
-    if args.filename:
-        filename = args.filename
-    else:
-        filename = f"{repo_name.split('/')[1]}.xlsx"
+    filename = get_filename(args)
     fileoutput = Workbook()
 
     worksheet = fileoutput.create_sheet(title="Data")
@@ -487,6 +484,33 @@ def get_issues(args):
     issues = get_github_issues(args, state=args.state)
     write_issues(issues, args, epic_dict)
 
+def get_filename(args):
+    """
+    Create the filename based on arguments
+    :param args: the arguments passed in
+    :return filename: the name of the Excel file
+    """
+    repo_name = args.repo[0]
+    if args.filename:
+        filename = args.filename
+    else:
+        filename = f"{repo_name.split('/')[1]}.xlsx"
+    return filename
+
+def upload_to_s3(args):
+    """Upload a file to an S3 location and set content type based on the file extension."""
+    s3c = boto3.client('s3')
+
+    filename = get_filename(args)
+    bucket_name = args.s3path.split('/')[0]
+    s3path = args.s3path.split('/')[1]
+
+    s3path = f'{s3path}/{filename}'
+    print(f'Uploading {s3path}')
+    s3c.upload_file(
+        filename, bucket_name, s3path
+    )
+
 def main():
     """The real main function..."""
 
@@ -496,9 +520,12 @@ def main():
     parser.add_argument('--html', default=0, type=int, help='html=1')
     parser.add_argument('--since', default=None, help='since date in the format of 2018-01-01')
     parser.add_argument('--state', default='all', help='the state as defined by github')
+    parser.add_argument('--s3path', default=None, help='the bucket and path for an s3 upload')
     args = parser.parse_args()
 
     get_issues(args)
+    if args.s3path:
+        upload_to_s3(args)
 
 if __name__ == '__main__':
     main()
