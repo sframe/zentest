@@ -19,17 +19,19 @@ Set these values as environment variables.
 For Windows, use the following format:
 
 ```
-setx ZENHUB_TOKEN XXXXXXX
+setx GITHUB_REPO XXXX/XXXX
 setx GITHUB_TOKEN XXXX
-setx REPO_ID XXXX
+setx ZENHUB_REPO_ID XXXX
+setx ZENHUB_TOKEN XXXXXXX
 ```
 
 For Bash, use the following format:
 
 ```
-export ZENHUB_TOKEN=XXXXXXX
+export GITHUB_REPO=XXXX/XXXX
 export GITHUB_TOKEN=XXXX
-export REPO_ID=XXXX
+export ZENHUB_REPO_ID=XXXX
+export ZENHUB_TOKEN=XXXXXXX
 ```
 
 The command line parameters are as follows:
@@ -38,13 +40,18 @@ The command line parameters are as follows:
 
 `--repo github_owner/github_repo`
 
-You can find you zenhub-id by going to ZenHub id by looking in the url when you go to Zenhub.com for the repository, repos=<zenhub-id>
+You can find you zenhub-id by going to ZenHub id by looking in the url when you go to Zenhub.com for the repository, repos=<zenhub-repo-id>
 
 `--html` This is either 0 or 1, most of the time you will want 0 which leaves the format in Markdown
 
-`--state` The state of the issues to export, the default is all
+`--state` The state of the issues to export. Can be open, closed, or all. The default is all
 
 Example:
-```
-export_repo_issues_to_csv.py --filename=test.xlsx --repo migibbs/zentest --html=0 --state=closed
+
+```sh
+python ./export_repo_issues_to_csv.py \
+  --file_name ~/Desktop/$(date +"%Y-%m-%d")_zenhub_export.xlsx \
+  --repo_list $GITHUB_REPO $ZENHUB_REPO_ID \
+  --html 0
+  --state closed
 ```

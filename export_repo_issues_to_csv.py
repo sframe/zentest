@@ -18,9 +18,13 @@ from retrying import retry
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
+# TODO - split file out into imports
+
+GITHUB_REPO = os.environ['GITHUB_REPO']
 GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
+ZENHUB_REPO_ID = os.environ['ZENHUB_REPO_ID']
 ZENHUB_TOKEN = os.environ['ZENHUB_TOKEN']
-REPO_ID = os.environ['REPO_ID']
+
 ZENHUB_API_RATE_LIMIT = 51
 
 GITHUB_HEADERS = {
@@ -30,8 +34,10 @@ GITHUB_HEADERS = {
 
 ZENHUB_HEADERS = {'X-Authentication-Token': ZENHUB_TOKEN}
 
-ZEN_URL = f'https://api.zenhub.io/p1/repositories/{REPO_ID}/'
+ZEN_URL = f'https://api.zenhub.io/p1/repositories/{ZENHUB_REPO_ID}/'
 
+
+# TODO - I don't quite grok the purpose of this class. Where can I find it being used with dot notation?
 class AttrDict(dict):
     """A dictionary where you can use dot notation for accessing elements."""
     def __getattr__(self, key):
@@ -55,9 +61,11 @@ def get_epics():
     zen_url = f'{ZEN_URL}epics/'
     zen_response = requests.get(zen_url, headers=ZENHUB_HEADERS)
     if not zen_response.status_code == 200:
+        # TODO - replace generic exception with custom execption
         raise Exception(zen_response.json())
     epics = zen_response.json()
     return epics
+
 
 def get_dependencies():
     """
@@ -65,13 +73,17 @@ def get_dependencies():
     :out dependencies: the response from the call for dependencies
     """
     zen_url = f'{ZEN_URL}dependencies/'
+
+    # TODO - replace print with logger
     print(zen_url)
     zen_response = requests.get(zen_url, headers=ZENHUB_HEADERS)
     if not zen_response.status_code == 200:
+        # TODO - replace generic exception with custom execption
         raise Exception(zen_response.json())
     dependencies = zen_response.json()
     return dependencies
 
+# TODO - reduce code complexity
 def create_blocked_items(issues):
     """
     Create a dictionary for looking up dependenceies by issue number
@@ -79,17 +91,20 @@ def create_blocked_items(issues):
     :out blocked_items: a dictionary of blocked issues
     """
     response = get_dependencies()
+    # TODO - Replace dict constructors with dict literals
     blocked_items = dict()
     closed = dict()
     fix_blockers = dict()
 
     for issue in issues:
         if issue['title'].startswith('Fix')and issue['state'] != 'closed':
-            #print(f"Do not skip {issue['number']} dependency...")
+            # TODO - replace print with logger (looks like debugging cruft...)
+            # print(f"Do not skip {issue['number']} dependency...")
             fix_blockers[issue['number']] = AttrDict(
                 issue_number=issue['number']
             )
-    #find all issues to ignore
+
+    # find all issues to ignore
     for issue in issues:
         if issue['state'] == 'closed':
             closed[issue['number']] = AttrDict(
@@ -99,10 +114,13 @@ def create_blocked_items(issues):
     for dependency in response['dependencies'] if response['dependencies'] else []:
         issue_number = dependency['blocked']['issue_number']
         blocking = dependency['blocking']['issue_number']
-        #if the issue is closed or the dependency is closed, ignore it
+
+        # if the issue is closed or the dependency is closed, ignore it
         if issue_number in closed or dependency['blocking']['issue_number'] in closed:
             continue
+
         if issue_number in blocked_items and blocking in fix_blockers:
+            # TODO - Replace dict constructors with dict literals
             temp = dict()
             depends = blocked_items[issue_number].blocked_by
             depends.append(dependency['blocking']['issue_number'])
@@ -116,7 +134,9 @@ def create_blocked_items(issues):
                 issue_number=dependency['blocked']['issue_number'],
                 blocked_by=[dependency['blocking']['issue_number']]
             )
+
     return blocked_items
+
 
 def get_epic_issues(epic_issue_id):
     """
@@ -130,12 +150,14 @@ def get_epic_issues(epic_issue_id):
     epic_issues = zen_response.json()
     return epic_issues
 
+
 def create_epic_dict():
     """
     Create a dictionary for looking up epics by issue number
     :out issue_epics: a dictionary of issues with the epics it is under
     """
     response = get_epics()
+    # TODO - Replace dict constructors with dict literals
     issue_epics = dict()
 
     for epic_issue in response['epic_issues'] if response['epic_issues'] else []:
@@ -144,6 +166,7 @@ def create_epic_dict():
         for issue in epic_issues['issues'] if epic_issues['issues'] else []:
             issue_number = issue['issue_number']
             if issue_number in issue_epics:
+                # TODO - Replace dict constructors with dict literals
                 temp = dict()
                 epic = issue_epics[issue_number].epic_issue
                 epic.append(epic_issue)
@@ -157,8 +180,11 @@ def create_epic_dict():
                     issue_number=issue_number,
                     epic_issue=[epic_issue]
                 )
+
+    # TODO - replace print statements with logger
     print('waiting after creating the dictionary')
     time.sleep(45)
+
     return issue_epics
 
 
@@ -175,9 +201,11 @@ def get_comments(repo_name, issue_id):
     comments = git_response.json()
     comment_sum = ''
     for comment in comments:
+        # TODO - replace dict constructor with dict literal
         c_login = comment.get("user", dict()).get('login', "")
         comment_sum = '@'+c_login+' - '+comment_sum + str(comment['body'])
     return comment_sum
+
 
 def throttle_zenhub(issue_cnt):
     """
@@ -185,7 +213,8 @@ def throttle_zenhub(issue_cnt):
     wait after the rate limit - 1 issues have been processed
     :param issue_cnt: the current issue count
     """
-    if issue_cnt%(ZENHUB_API_RATE_LIMIT-1) == 0:
+    if issue_cnt % (ZENHUB_API_RATE_LIMIT-1) == 0:
+        # TODO - replace print statements with logger
         print(f'{issue_cnt} issues processed')
         time.sleep(45)
 
@@ -228,6 +257,7 @@ def get_zenresponse(issue_url):
     """
     zen_response = requests.get(issue_url, headers=ZENHUB_HEADERS)
     if not zen_response.status_code == 200:
+        # TODO - replace generic exception with custom execption
         raise Exception(zen_response.json())
     return zen_response
 
@@ -243,6 +273,7 @@ def get_zenhubresponse(issue_number):
     issue_url = f'{zen_url}{issue_number}'
     zen_response = get_zenresponse(issue_url)
     zen_r = zen_response.json()
+    # TODO - replace dict constructor with dict literal
     s_pipeline = zen_r.get("pipeline", dict()).get('name', "")
     estimate_value = zen_r.get("estimate", dict()).get('value', "")
     return s_pipeline, estimate_value
@@ -268,12 +299,13 @@ def get_labels_string(issue):
             s_priority = label['name']
     return s_labels, s_priority
 
+
 def calculate_status(issue, pipeline):
     """
     Calculates the traffic light status on an issue
     :param issue: the issue to review
     :param pipeline: the pipeline for the issue
-    :returtns status: the decoded status for the issue
+    :returns status: the decoded status for the issue
     """
     status = 'Green'
 
@@ -282,11 +314,14 @@ def calculate_status(issue, pipeline):
     if issue['state'] == 'closed':
         status = 'Deployed'
         return status
+
+    # TODO - replace magic datetime strings with constants
     if issue['milestone']:
         milestone = issue['milestone'].get('due_on', now.strftime('%Y-%m-%dT%H:%M:%SZ'))
     else:
         milestone = now.strftime('%Y-%m-%dT%H:%M:%SZ')
-    #if the issue is not due within this sprint or earlier, ignore dependencies
+
+    # if the issue is not due within this sprint or earlier, ignore dependencies
     if datetime.datetime.strptime(milestone, '%Y-%m-%dT%H:%M:%SZ') \
        < now + datetime.timedelta(days=14):
         red_rules = [
@@ -306,6 +341,7 @@ def calculate_status(issue, pipeline):
 
     return status
 
+
 def write_row(issue, row, worksheet):
     """
     Writes rows to an Excel file
@@ -316,13 +352,18 @@ def write_row(issue, row, worksheet):
     issue_number = str(issue['number'])
     row['s_pipeline'], row['estimate_value'] = get_zenhubresponse(issue_number)
     status = calculate_status(issue, row['s_pipeline'])
+
     if row['s_state'] == 'closed':
         row['s_pipeline'] = 'Closed'
+
     row['comments'] = ''
+
     if issue['comments'] > 0:
         row['comments'] = get_comments(row['repo_name'], issue_number)
+
     if (not row['s_priority'] and row['s_pipeline'] == 'Closed'):
         row['s_priority'] = 'High'
+
     rowvalues = [row['repo_name'], issue['number'], issue['title'],
                  row['userstory'], row['s_pipeline'], issue['user']['login'], issue['created_at'],
                  issue['milestone']['title'] if issue['milestone']
@@ -331,10 +372,12 @@ def write_row(issue, row, worksheet):
                  row['s_priority'], row['s_labels'],
                  row['comments'], row['s_epics'][:-1], status,
                  issue['blocked'], str(issue['blocked_by']).strip('[]')]
+
     for i, value in enumerate(rowvalues):
         worksheet.cell(column=(i+1),
                        row=1+row['issue_cnt'],
                        value=value)
+
 
 def write_headers(worksheet):
     """
@@ -360,6 +403,7 @@ def write_issues(issues, args, epics):
     """
     issue_cnt = 0
 
+    # TODO - set args.repo[0] once as constant
     repo_name = args.repo[0]
     filename = get_filename(args)
     fileoutput = Workbook()
@@ -373,12 +417,15 @@ def write_issues(issues, args, epics):
     for issue in issues:
         issue_cnt += 1
         s_labels, s_priority = get_labels_string(issue)
+
         if args.html == 1:
             userstory = markdown.markdown(issue['body'])
         else:
             userstory = issue['body']
+
+        # TODO - replace dict constructors with dict literals
         row = dict(repo_name=repo_name,
-                   repo_id=REPO_ID,
+                   ZENHUB_REPO_ID=ZENHUB_REPO_ID,
                    userstory=userstory,
                    s_assignee_list=get_assignees(issue),
                    s_priority=s_priority,
@@ -387,6 +434,7 @@ def write_issues(issues, args, epics):
                    s_state=issue['state'],
                    issue_cnt=issue_cnt,)
         write_row(issue, row, worksheet)
+        # TODO - replace print with logger
         print(f'issue count: {issue_cnt}')
         throttle_zenhub(issue_cnt)
 
@@ -400,6 +448,7 @@ def get_pages(issue_response):
     :param issue_response: the response for the github call for the issue
     :returns pages_dict: a dictionary object for the pages link
     """
+    # TODO - dict expression instead of dict constructor
     pages_dict = dict(
         (rel[6:-1], url[url.index('<') + 1:-1]) for url, rel in
         [link.split(';') for link in
@@ -415,10 +464,14 @@ def get_nextpage_response(pages):
     """
     issue_response = requests.get(pages['next'], headers=GITHUB_HEADERS)
     if not issue_response.status_code == 200:
+        # TODO - replace print with logger
         print(issue_response.json())
+        # TODO - replace generic exception with custom execption
         raise Exception(issue_response.status_code)
     return issue_response.json()
 
+
+# TODO - reduce code complexity
 def get_github_issues(args, state='all'):
     """
     Get github issues
@@ -428,7 +481,9 @@ def get_github_issues(args, state='all'):
     """
 
     since = args.since
+    # TODO - set args.repo[0] once as constant
     repo_name = args.repo[0]
+    # TODO - replace print with logger
     print(repo_name)
 
     issues_for_repo_url = f'https://api.github.com/repos/{repo_name}/issues?state={state}'
@@ -438,11 +493,16 @@ def get_github_issues(args, state='all'):
         print(f'Filtering since {since_date}...')
         issues_for_repo_url = f'{issues_for_repo_url}&since={since_date}'
         print(f'Request {issues_for_repo_url}...')
+
     issue_response = requests.get(issues_for_repo_url, headers=GITHUB_HEADERS)
+
     if not issue_response.status_code == 200:
+        # TODO - replace generic exception with custom execption
         raise Exception(issue_response.json())
+
     response = issue_response.json()
     issues += response
+
     # more pages? examine the 'link' header returned
     if 'link' in issue_response.headers:
         pages = get_pages(issue_response)
@@ -462,7 +522,9 @@ def get_github_issues(args, state='all'):
                                       "blocked_by": "",})
                     issues[issues.index(issue)] = issue
                 return issues
+
     blocked = create_blocked_items(issues)
+
     for issue in issues:
         if issue['number'] in blocked:
             issue.update({"blocked": "blocked",
@@ -471,18 +533,20 @@ def get_github_issues(args, state='all'):
             issue.update({"blocked": "",
                           "blocked_by": "",})
         issues[issues.index(issue)] = issue
+
     return issues
+
 
 def get_issues(args):
     """
     Get an issue attributes
     :param args: the arguments passed in
     """
-
-    #get the epic dictionary
+    # get the epic dictionary
     epic_dict = create_epic_dict()
     issues = get_github_issues(args, state=args.state)
     write_issues(issues, args, epic_dict)
+
 
 def get_filename(args):
     """
@@ -490,6 +554,7 @@ def get_filename(args):
     :param args: the arguments passed in
     :return filename: the name of the Excel file
     """
+    # TODO - set args.repo[0] once as constant
     repo_name = args.repo[0]
     if args.filename:
         filename = args.filename
@@ -497,8 +562,12 @@ def get_filename(args):
         filename = f"{repo_name.split('/')[1]}.xlsx"
     return filename
 
+
 def upload_to_s3(args):
-    """Upload a file to an S3 location and set content type based on the file extension."""
+    """
+    Upload a file to an S3 location and set content type based on the
+    file extension.
+    """
     s3c = boto3.client('s3')
 
     filename = get_filename(args)
@@ -511,21 +580,24 @@ def upload_to_s3(args):
         filename, bucket_name, s3path
     )
 
+
 def main():
     """The real main function..."""
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--filename', default=None, help='filename=filename.txt')
-    parser.add_argument('--repo', nargs='+', help='repo owner/repo')
-    parser.add_argument('--html', default=0, type=int, help='html=1')
-    parser.add_argument('--since', default=None, help='since date in the format of 2018-01-01')
-    parser.add_argument('--state', default='all', help='the state as defined by github')
-    parser.add_argument('--s3path', default=None, help='the bucket and path for an s3 upload')
+    parser.add_argument('--filename', default=None, help='filename=filename.txt') # TODO consider setting this as a positional arg (i.e. "required") https://docs.python.org/3/library/argparse.html#name-or-flags
+    parser.add_argument('--repo', nargs='+', help='repo owner/repo') # TODO - consider setting this as an environment variable (this part was tricky for me to understand where to add the zenhub-repo-id)
+    parser.add_argument('--html', default=0, type=int, help='html=1') # TODO - condsider using the `store_true` action instead of int 0,1
+    parser.add_argument('--since', default=None, help='since date in the format of 2018-01-01') # TODO - add to readme
+    parser.add_argument('--state', default='all', help='the state as defined by github') # TODO - Consider using `choices`, https://docs.python.org/3/library/argparse.html#choices
+    parser.add_argument('--s3path', default=None, help='the bucket and path for an s3 upload') # TODO - add to readme
     args = parser.parse_args()
 
     get_issues(args)
+
     if args.s3path:
         upload_to_s3(args)
+
 
 if __name__ == '__main__':
     main()
